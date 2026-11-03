@@ -10,7 +10,7 @@ so they always give the same answer.
 import pandas as pd
 
 from tracker import excel_loader, storage, matching, features
-from tracker.sources import ALL_SOURCES
+from tracker.sources import ALL_SOURCES, PRIVATE_SOURCES
 
 
 def update_data(source_names=None, log=print) -> int:
@@ -21,7 +21,7 @@ def update_data(source_names=None, log=print) -> int:
             continue
         rows = fetch(vessels, log=log)
         if not rows.empty:
-            new = storage.save_positions(rows)
+            new = storage.save_positions(rows, private=name in PRIVATE_SOURCES)
             log(f"{name}: {len(rows)} rows downloaded, {new} new")
             total_new += new
     return total_new

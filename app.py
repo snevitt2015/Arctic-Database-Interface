@@ -46,7 +46,7 @@ with st.sidebar:
         label = st.text_input("Source name", value="TankerMap")
         if up and st.button("Import file"):
             rows = read_file(up, source_name=label)
-            new = storage.save_positions(rows)
+            new = storage.save_positions(rows, private=True)   # uploads stay off GitHub
             (IMPORTS_DIR / up.name).write_bytes(up.getvalue())   # keep the original too
             st.success(f"{len(rows)} rows read, {new} new")
             st.cache_data.clear()

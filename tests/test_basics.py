@@ -9,7 +9,7 @@ from tracker.features import add_features
 from tracker.excel_loader import load_vessels, load_ports
 from tracker.matching import match_to_watchlist
 from tracker.schema import standardize
-from tracker.sources.global_fishing_watch import _events_to_rows
+from tracker.sources.global_fishing_watch import _events_to_rows, _accepted_ids
 
 
 def test_distance_and_bearing():
@@ -66,3 +66,22 @@ def test_gfw_gap_event_parsing():
                    "offPosition": {"lat": 70, "lon": 50}, "onPosition": {"lat": 71, "lon": 55}}}]
     rows = _events_to_rows(ev, "ais_off", {"imo": "9904546", "mmsi": "273253", "name": "ALEXEY KOSYGIN"})
     assert [r["event_type"] for r in rows] == ["ais_off", "ais_on"]
+
+
+def test_gfw_identity_filter_drops_unrelated_vessel():
+    entry = {"selfReportedInfo": [
+        {"id": "a", "imo": "9324277", "ssvid": "636013234", "shipname": "NEO ENERGY"},
+        {"id": "b", "imo": "", "ssvid": "636013234", "shipname": "NEO ENERGY"},     # same MMSI -> keep
+        {"id": "c", "imo": "", "ssvid": "306002000", "shipname": "NOVA ENERGY"},    # our MMSI -> keep
+        {"id": "d", "imo": "", "ssvid": "412287282", "shipname": "JIHUANGYU 35223"},  # unrelated -> drop
+        {"id": "e", "imo": "1234567", "ssvid": "306002000", "shipname": "OTHER"},   # other IMO -> drop
+    ]}
+    vessel = {"imo": "9324277", "mmsi": "306002000", "name": "Nova Energy"}
+    assert _accepted_ids(entry, vessel, log=lambda m: None) == ["a", "b", "c"]
+
+
+def test_far_from_ports_has_no_nearest_port():
+    t = _track()
+    t["lat"] += 8                      # move to ~78N 40E, far from every port
+    df = add_features(match_to_watchlist(t, load_vessels()), load_ports())
+    assert (df["nearest_port"] == "").all()

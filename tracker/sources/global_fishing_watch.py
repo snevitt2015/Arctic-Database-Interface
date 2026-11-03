@@ -44,11 +44,49 @@ def _get(path: str, params: dict) -> dict:
     r.raise_for_status()
 
 
-def find_gfw_ids(imo: str, mmsi: str, name: str) -> list:
+def _clean(value) -> str:
+    return str(value or "").strip().upper()
+
+
+def _accepted_ids(entry: dict, vessel, log=print) -> list:
+    """Keep only the GFW identities that really belong to OUR ship.
+
+    GFW joins identities together, and now and then an unrelated vessel slips in
+    (e.g. a fishing boat that once used a similar radio ID). Rules:
+      1. identity reports our IMO                      -> keep
+      2. identity reports a DIFFERENT IMO              -> drop
+      3. no IMO, but its MMSI is our MMSI, or an MMSI
+         also used by an identity with our IMO         -> keep
+      4. no IMO, but same name as a confirmed identity -> keep
+      5. anything else                                 -> drop (and say so)
+    If GFW gives no IMO for any identity, we fall back to keeping them all.
+    """
+    infos = [i for i in entry.get("selfReportedInfo", []) if i.get("id")]
+    our_imo, our_mmsi = _clean(vessel["imo"]), _clean(vessel["mmsi"])
+    if not our_imo or not any(_clean(i.get("imo")) for i in infos):
+        confirmed = [i for i in infos if not our_mmsi or _clean(i.get("ssvid")) == our_mmsi] if not our_imo else infos
+        return [i["id"] for i in (confirmed or infos)]
+
+    with_our_imo = [i for i in infos if _clean(i.get("imo")) == our_imo]
+    good_mmsis = {_clean(i.get("ssvid")) for i in with_our_imo} | {our_mmsi}
+    good_names = {_clean(i.get("shipname")) for i in with_our_imo} | {_clean(vessel["name"])}
+    keep = []
+    for i in infos:
+        imo = _clean(i.get("imo"))
+        if imo == our_imo or (not imo and (_clean(i.get("ssvid")) in good_mmsis
+                                           or _clean(i.get("shipname")) in good_names)):
+            keep.append(i["id"])
+        else:
+            log(f"GFW: ignoring identity {i.get('shipname')} (MMSI {i.get('ssvid')}, IMO {imo or 'none'}) "
+                f"- does not match {vessel['name']}")
+    return keep
+
+
+def find_gfw_ids(vessel, log=print) -> list:
     """GFW has its own vessel IDs. Look them up by IMO, then MMSI, then name.
-    A ship can have several IDs over the years (e.g. after changing MMSI or flag),
-    so we return all of them to cover all dates."""
-    for query in [imo, mmsi, name]:
+    A ship can have several IDs over the years (after changing name, MMSI or flag);
+    we keep all of them that check out, to cover all dates."""
+    for query in [vessel["imo"], vessel["mmsi"], vessel["name"]]:
         if not query:
             continue
         data = _get("/vessels/search", {
@@ -57,9 +95,7 @@ def find_gfw_ids(imo: str, mmsi: str, name: str) -> list:
         })
         ids = []
         for entry in data.get("entries", []):
-            for info in entry.get("selfReportedInfo", []):
-                if info.get("id"):
-                    ids.append(info["id"])
+            ids += _accepted_ids(entry, vessel, log)
         if ids:
             return list(dict.fromkeys(ids))   # remove duplicates, keep order
     return []
@@ -113,7 +149,7 @@ def fetch(vessels: pd.DataFrame, start_date: str = HISTORY_START_DATE,
     rows = []
     for _, vessel in vessels.iterrows():
         try:
-            ids = find_gfw_ids(vessel["imo"], vessel["mmsi"], vessel["name"])
+            ids = find_gfw_ids(vessel, log)
         except requests.RequestException as e:
             log(f"GFW: search failed for {vessel['name']}: {e}")
             continue

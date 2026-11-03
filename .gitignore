@@ -1,0 +1,16 @@
+# Secrets - never upload
+.env
+.streamlit/secrets.toml
+
+# Python clutter
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+venv/
+~$*.xlsx
+
+# Third-party exports (MarineTraffic, TankerMap...) usually can't be republished.
+# They stay on your computer; only the folder itself is kept in the repo.
+data/imports/*
+!data/imports/.gitkeep

@@ -81,6 +81,8 @@ def add_features(df: pd.DataFrame, ports: pd.DataFrame) -> pd.DataFrame:
     df = pd.concat(out, ignore_index=True)
 
     ports_found = [nearest_port(a, b, ports) for a, b in zip(df["lat"], df["lon"])]
+    # "Nearest port: Murmansk" is meaningless for a ship off Africa - leave it blank
+    ports_found = [p if p[1] <= config.NEAR_PORT_MAX_KM else ("", p[1]) for p in ports_found]
     df["nearest_port"] = [p[0] for p in ports_found]
     df["km_to_port"] = [round(p[1], 1) if not pd.isna(p[1]) else np.nan for p in ports_found]
     df["in_port"] = df["km_to_port"] < config.IN_PORT_KM
