@@ -65,9 +65,14 @@ def add_features(df: pd.DataFrame, ports: pd.DataFrame) -> pd.DataFrame:
         g["calc_speed_kn"] = [kmh_to_knots(k / h) if h and h > 0 else np.nan for k, h in zip(km, hours)]
         g["calc_course"] = [bearing_deg(a, b, c, d) if not pd.isna(a) else np.nan
                             for a, b, c, d in zip(prev["lat"], prev["lon"], g["lat"], g["lon"])]
+        # calc_speed is always kept (it spots impossible jumps) but only TRUSTED as the
+        # ship's speed when the two points are close in time.
+        close = hours <= config.MAX_HOURS_BETWEEN_POINTS
+        trusted_speed = g["calc_speed_kn"].where(close)
+        trusted_course = g["calc_course"].where(close)
 
-        g["speed_used"] = g["speed_kn"].fillna(g["calc_speed_kn"])
-        g["course_used"] = g["course"].fillna(g["heading"]).fillna(g["calc_course"])
+        g["speed_used"] = g["speed_kn"].fillna(trusted_speed)      # unknown if points are far apart
+        g["course_used"] = g["course"].fillna(g["heading"]).fillna(trusted_course)
         g["turn_deg"] = [_angle_diff(a, b) for a, b in zip(g["course_used"], g["course_used"].shift(1))]
 
         both_track = g["event_type"].isin(TRACK_TYPES) & prev["event_type"].isin(TRACK_TYPES)

@@ -40,6 +40,10 @@ MAX_REALISTIC_SPEED_KN = 30.0 # a tanker jumping faster than this -> position li
 IN_PORT_KM = 10.0             # within this distance of a port -> "in port"
 NEAR_PORT_MAX_KM = 300.0      # further than this from every port -> nearest_port left blank
 
+# Positions further apart than this are NOT used to calculate speed/direction and are
+# NOT joined by a line on the map (e.g. two port visits a month apart).
+MAX_HOURS_BETWEEN_POINTS = 12.0
+
 # Prediction
 PREDICT_HOURS = 72            # how far ahead to predict
 PREDICT_STEP_HOURS = 6        # one predicted point every N hours

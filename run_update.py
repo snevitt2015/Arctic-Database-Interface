@@ -9,8 +9,11 @@ GitHub Actions runs this every day (see .github/workflows/daily_update.yml).
 """
 import argparse
 
+import pandas as pd
+
 from tracker.pipeline import update_data, build_dataset
 from tracker.features import dark_periods
+from tracker.matching import identity_changes
 from tracker.prediction import predict
 from config import DATA_DIR
 
@@ -39,12 +42,15 @@ def main():
     for vessel, track in df[df["vessel"] != ""].groupby("vessel"):
         last = track.sort_values("timestamp").iloc[-1]
         p = predict(track)
-        p.insert(0, "vessel", vessel)
-        predictions.append(p)
-        p24 = p[(p["hours_ahead"] == 24) & (p["method"] == "dead_reckoning")]
-        nxt = f"-> 24h: {p24.iloc[0]['lat']:.2f}, {p24.iloc[0]['lon']:.2f}" if not p24.empty else "-> no prediction"
-        print(f"  {vessel:16} {last['timestamp']:%Y-%m-%d %H:%M}  {last['lat']:.2f}, {last['lon']:.2f}  "
-              f"{last['speed_used']:.1f} kn  {last['course_used']:.0f}°  {nxt}")
+        nxt = "-> no prediction (no recent speed/direction)"
+        if not p.empty:
+            p.insert(0, "vessel", vessel)
+            predictions.append(p)
+            p24 = p[(p["hours_ahead"] == 24) & (p["method"] == "dead_reckoning")]
+            if not p24.empty:
+                nxt = f"-> 24h: {p24.iloc[0]['lat']:.2f}, {p24.iloc[0]['lon']:.2f}"
+        spd = "  ?  kn" if pd.isna(last["speed_used"]) else f"{last['speed_used']:4.1f} kn"
+        print(f"  {vessel:16} {last['timestamp']:%Y-%m-%d %H:%M}  {last['lat']:6.2f}, {last['lon']:7.2f}  {spd}  {nxt}")
 
     dark = dark_periods(df)
     print(f"\n{len(dark)} suspected dark periods.")
@@ -52,10 +58,15 @@ def main():
     # Save results so they can be opened in Excel or committed to GitHub
     df.to_csv(DATA_DIR / "output_features.csv", index=False)
     dark.to_csv(DATA_DIR / "output_dark_periods.csv", index=False)
-    if predictions:
-        import pandas as pd
-        pd.concat(predictions).to_csv(DATA_DIR / "output_predictions.csv", index=False)
-    print("Saved data/output_features.csv, output_dark_periods.csv, output_predictions.csv")
+    pred_cols = ["vessel", "method", "hours_ahead", "timestamp", "lat", "lon", "uncertainty_km"]
+    (pd.concat(predictions) if predictions else pd.DataFrame(columns=pred_cols)).to_csv(
+        DATA_DIR / "output_predictions.csv", index=False)
+    # Small extra tables for the web map (index.html)
+    ports[["name", "lat", "lon", "coords_source"]].to_csv(DATA_DIR / "output_ports.csv", index=False)
+    vessels[["name", "type", "flag", "imo", "mmsi", "sanctioned", "notes"]].to_csv(
+        DATA_DIR / "output_vessels.csv", index=False)
+    identity_changes(df).to_csv(DATA_DIR / "output_identities.csv", index=False)
+    print("Saved data/output_*.csv (features, dark periods, predictions, ports, vessels, identities)")
 
 
 if __name__ == "__main__":

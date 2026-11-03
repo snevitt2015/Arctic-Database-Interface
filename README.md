@@ -15,6 +15,20 @@ It combines open-source intelligence (OSINT) with our Excel watch list:
 
 ---
 
+## 0. Interactive web map (no install)
+
+**https://snevitt2015.github.io/Arctic-Database-Interface/**
+
+The page (`index.html`) reads the `data/output_*.csv` files, which the daily GitHub Action refreshes,
+so it updates itself every morning. You can:
+* pick a time window (30 days / 90 days / 1 year / all since 2012), drag the slider, or press ▶ to play through time
+* tick ships on and off; click a ship to see its names, MMSIs, last position, and AIS-off count
+* click any dot for its details
+* use the tables underneath (AIS-off periods, impossible moves, identity changes, encounters, last seen) and click a row to jump to it
+
+One-time setup: repo **Settings → Pages → Build and deployment → Source: Deploy from a branch →
+Branch: `main`, folder `/ (root)` → Save**.
+
 ## 1. Install (once)
 
 ```bash

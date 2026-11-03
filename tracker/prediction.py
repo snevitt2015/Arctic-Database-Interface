@@ -73,7 +73,10 @@ def _is_stopped(last, speed) -> bool:
 def recent_average(track: pd.DataFrame, n_points=None, hours=None, step=None) -> pd.DataFrame:
     """Average movement between the first and last of the last N positions."""
     n_points = n_points or config.RECENT_POINTS_FOR_AVERAGE
-    t = track.sort_values("timestamp").tail(n_points)
+    t = track.sort_values("timestamp")
+    # only recent points - a port visit last month says nothing about the ship's speed now
+    t = t[t["timestamp"] >= t["timestamp"].iloc[-1] - pd.Timedelta(hours=4 * config.MAX_HOURS_BETWEEN_POINTS)]
+    t = t.tail(n_points)
     if len(t) < 2:
         return pd.DataFrame()
     first, last = t.iloc[0], t.iloc[-1]

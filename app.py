@@ -9,7 +9,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
 
-from config import IMPORTS_DIR, DEMO_FILE
+from config import IMPORTS_DIR, DEMO_FILE, MAX_HOURS_BETWEEN_POINTS
 from tracker.pipeline import build_dataset, update_data
 from tracker.features import dark_periods
 from tracker.matching import identity_changes
@@ -66,7 +66,9 @@ with st.sidebar:
     selected = st.multiselect("Vessels", names, default=names)
     if not df.empty:
         dmin, dmax = df["timestamp"].min().date(), df["timestamp"].max().date()
-        dates = st.date_input("Dates (default: ALL dates)", (dmin, dmax), min_value=dmin, max_value=dmax)
+        start = max(dmin, dmax - pd.Timedelta(days=90))
+        dates = st.date_input("Dates (default: last 90 days - all dates from 2012 are available)",
+                              (start, dmax), min_value=dmin, max_value=dmax)
     show_unmatched = st.checkbox("Show ships not on the watch list", value=False)
     hours_ahead = st.slider("Predict hours ahead", 6, 168, 72, step=6)
     methods = st.multiselect("Prediction methods", list(METHODS), default=list(METHODS))
@@ -112,13 +114,20 @@ with tab_map:
     for vessel, g in view.groupby("vessel"):
         g = g.sort_values("timestamp")
         label = vessel or "Not on watch list"
+        # Break the line where points are far apart in time (None = gap in a plotly line)
+        lats, lons, texts = [], [], []
+        for (_, r), far in zip(g.iterrows(), g["timestamp"].diff() > pd.Timedelta(hours=MAX_HOURS_BETWEEN_POINTS)):
+            if far:
+                lats.append(None); lons.append(None); texts.append(None)
+            spd = "" if pd.isna(r["speed_used"]) else f"{r['speed_used']:.1f} kn "
+            crs = "" if pd.isna(r["course_used"]) else f"{r['course_used']:.0f}°"
+            lats.append(r["lat"]); lons.append(r["lon"])
+            texts.append(f"{label}<br>{r['timestamp']:%Y-%m-%d %H:%M} UTC<br>{spd}{crs}<br>"
+                         f"{r['event_type']} · {r['source']}<br>{r['note']}")
         fig.add_trace(go.Scattermap(
-            lat=g["lat"], lon=g["lon"], mode="lines+markers", name=label, legendgroup=label,
+            lat=lats, lon=lons, mode="lines+markers", name=label, legendgroup=label,
             marker=dict(size=6, color=colour[vessel]), line=dict(width=2, color=colour[vessel]),
-            text=[f"{label}<br>{t:%Y-%m-%d %H:%M} UTC<br>{s:.1f} kn, {c:.0f}°<br>{e} · {src}<br>{n}"
-                  for t, s, c, e, src, n in zip(g["timestamp"], g["speed_used"].fillna(0),
-                                                 g["course_used"].fillna(0), g["event_type"], g["source"], g["note"])],
-            hoverinfo="text"))
+            text=texts, hoverinfo="text"))
     flagged = view[view["dark_gap"]]
     if not flagged.empty:
         fig.add_trace(go.Scattermap(lat=flagged["lat"], lon=flagged["lon"], mode="markers",
