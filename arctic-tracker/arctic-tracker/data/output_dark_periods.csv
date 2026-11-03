@@ -1,0 +1,4 @@
+vessel,went_dark,reappeared,hours_dark,km_moved,dark_lat,dark_lon,near_port,note
+Arctic Mulan,2026-08-21 06:30:47+00:00,2026-08-21 23:21:12+00:00,16.8,533.5,43.93037,-19.58076,Murmansk,"AIS off 16.84027777777778 h, 533.5065733030576 km travelled while dark, intentional=True"
+Arctic Pioneer,2017-02-04 23:00:10+00:00,2017-02-05 15:42:46+00:00,16.7,567.3,8.51053,73.9839,Tieshan (China),"AIS off 16.71 h, 567.2883746678573 km travelled while dark, intentional=True"
+Nova Energy,2021-03-26 19:27:19+00:00,2021-03-27 17:01:53+00:00,21.6,15.9,18.11619,59.19834,Tieshan (China),"AIS off 21.57611111111111 h, 15.795073811176795 km travelled while dark, intentional=True"
