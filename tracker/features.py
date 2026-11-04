@@ -28,6 +28,7 @@ from tracker.geo import distance_km, bearing_deg, kmh_to_knots
 # Gaps between these kinds of rows mean "AIS went quiet". Gaps between, say,
 # two port visits are normal (we just don't have the track in between).
 TRACK_TYPES = {"position", "ais_on"}
+# 'area_report' = position known only as a sea/area name (see capstone_loader.area_to_position)
 
 
 def _angle_diff(a, b):
@@ -67,6 +68,11 @@ def add_features(df: pd.DataFrame, ports: pd.DataFrame) -> pd.DataFrame:
                             for a, b, c, d in zip(prev["lat"], prev["lon"], g["lat"], g["lon"])]
         # calc_speed is always kept (it spots impossible jumps) but only TRUSTED as the
         # ship's speed when the two points are close in time.
+        # positions only known roughly (area names) can't give a speed or prove a jump
+        fine = g["pos_error_km"].fillna(0.5) <= config.COARSE_POSITION_KM
+        both_fine = fine & prev["pos_error_km"].fillna(0.5).le(config.COARSE_POSITION_KM)
+        g.loc[~both_fine, "calc_speed_kn"] = np.nan
+        g.loc[~both_fine, "calc_course"] = np.nan
         close = hours <= config.MAX_HOURS_BETWEEN_POINTS
         trusted_speed = g["calc_speed_kn"].where(close)
         trusted_course = g["calc_course"].where(close)

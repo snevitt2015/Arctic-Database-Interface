@@ -34,6 +34,8 @@ def main():
           f"(see data/output_data_checks.csv)")
     for _, c in checks[checks["severity"] == "error"].iterrows():
         print(f"  ERROR {c['table']} / {c['record']} / {c['field']}: {c['problem']}")
+    from tracker.capstone_loader import _source_note
+    print("Capstone Database read from:", ", ".join(sorted(set(_source_note.values()))) or "not found")
     print()
 
     if not args.no_fetch:

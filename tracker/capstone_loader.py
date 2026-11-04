@@ -122,20 +122,71 @@ def load_ais_checks() -> pd.DataFrame:
     return out[out["imo"] != ""].reset_index(drop=True)
 
 
+# ------------------------------------------------------------------ area names -> coarse positions
+_gazetteer = None
+
+
+def gazetteer() -> pd.DataFrame:
+    global _gazetteer
+    if _gazetteer is None:
+        from config import GAZETTEER_FILE
+        g = pd.read_csv(GAZETTEER_FILE) if GAZETTEER_FILE.exists() else pd.DataFrame(
+            columns=["name", "aliases", "lat", "lon", "radius_km", "kind"])
+        g["alias_list"] = g["aliases"].fillna("").str.split("|")
+        _gazetteer = g
+    return _gazetteer
+
+
+def area_to_position(area: str):
+    """Turn an AIS area name into (lat, lon, radius_km, matched_name), or None.
+
+    'Barents Sea (Murmansk)' -> Murmansk, ±20 km   (the place in brackets is more precise)
+    'Gulf of Finland (Bolshoy Bor)' -> Gulf of Finland, ±200 km   (Bolshoy Bor not in the list)
+    Add places to data/region_gazetteer.csv - longer names win, so 'lower volga' beats 'volga'."""
+    if not isinstance(area, str) or not area.strip():
+        return None
+    text = area.lower()
+    inside = " ".join(re.findall(r"\(([^)]*)\)", text))
+    outside = re.sub(r"\([^)]*\)", " ", text)
+    for part in (inside, outside):
+        best = None
+        for _, g in gazetteer().iterrows():
+            for alias in g["alias_list"]:
+                if alias and re.search(rf"(?<![a-z]){re.escape(alias)}(?![a-z])", part):
+                    if best is None or len(alias) > best[0]:
+                        best = (len(alias), g)
+        if best:
+            g = best[1]
+            return float(g["lat"]), float(g["lon"]), float(g["radius_km"]), g["name"]
+    return None
+
+
 def ais_checks_as_positions(checks: pd.DataFrame, registry: pd.DataFrame) -> pd.DataFrame:
-    """AIS checks that have Latitude/Longitude filled in become positions on the map
-    (and give the prediction a real speed and course)."""
+    """Every AIS check becomes a position:
+      * with Latitude/Longitude filled in -> a precise position (event 'position', ±0.5 km)
+      * with only an area name            -> the area's centre with its radius as the error
+                                             (event 'area_report', e.g. Barents Sea ±700 km)
+    Area reports are drawn on the map and used for 'where was it roughly', but are kept out of
+    speed calculations and predictions, where they would give nonsense."""
     if checks.empty:
         return empty_table()
-    c = checks[(checks["kind"] == "check") & checks["lat"].notna() & checks["lon"].notna()].copy()
+    c = checks[checks["kind"] == "check"].copy()
     if c.empty:
         return empty_table()
+    precise = c["lat"].notna() & c["lon"].notna()
+    found = [None if p else area_to_position(a) for p, a in zip(precise, c["area"])]
+    c["lat"] = [lat if p else (f[0] if f else None) for lat, f, p in zip(c["lat"], found, precise)]
+    c["lon"] = [lon if p else (f[1] if f else None) for lon, f, p in zip(c["lon"], found, precise)]
+    c["pos_error_km"] = [0.5 if p else (f[2] if f else None) for f, p in zip(found, precise)]
+    c["event_type"] = ["position" if p else "area_report" for p in precise]
+    area_note = [("" if p else f" (placed at {f[3]} ±{f[2]:.0f} km)" if f else " (area not recognised)")
+                 for f, p in zip(found, precise)]
     names = dict(zip(registry["imo"], registry["name"]))
     c["timestamp"] = c["position_time"].fillna(c["checked"])
     c["name"] = c["imo"].map(names).fillna("")
     c["source"] = "Capstone AIS check"
-    c["event_type"] = "position"
-    c["note"] = (c["area"] + " · " + c["nav_status"] + " · dest " + c["destination"]).str.strip(" ·")
+    c["note"] = [(f"{a}{n} · {s} · dest {d}").strip(" ·") for a, n, s, d in
+                 zip(c["area"], area_note, c["nav_status"], c["destination"])]
     return standardize(c)
 
 

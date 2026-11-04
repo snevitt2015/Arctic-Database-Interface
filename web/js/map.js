@@ -97,7 +97,8 @@ export function setData(store) {
     const flush = () => { if (seg.length > 1) tracks.push(line(seg.map((e) => [e.lon, e.lat]), { vessel, cat, t0: seg[0].t, t1: seg.at(-1).t })); };
     for (let i = 1; i < list.length; i++) {
       // break the line on long gaps, and never draw an "impossible move" as if it were a real track
-      if (list[i].t - list[i - 1].t > MAX_GAP_HOURS * H || list[i].jump) { flush(); seg = []; }
+      const coarse = (e) => e.ev === "area_report";
+      if (list[i].t - list[i - 1].t > MAX_GAP_HOURS * H || list[i].jump || coarse(list[i]) || coarse(list[i - 1])) { flush(); seg = []; }
       seg.push(list[i]);
     }
     flush();
@@ -147,13 +148,13 @@ function addLayers() {
     paint: { "line-color": catColorExpr, "line-width": 2, "line-dasharray": [2, 1.5] } });
   map.addLayer({ id: "events", type: "circle", source: "events", paint: {
     "circle-color": catColorExpr,
-    "circle-opacity": ["case", ["==", ["get", "ev"], "loitering"], 0, 0.9],
+    "circle-opacity": ["case", ["in", ["get", "ev"], ["literal", ["loitering", "area_report"]]], 0, 0.9],
     "circle-radius": ["interpolate", ["linear"], ["zoom"], 2,
       ["*", 0.7, ["match", ["get", "ev"], ...Object.entries(EVENT_TYPES).flatMap(([k, v]) => [k, v.radius]), 4]], 8,
       ["*", 1.3, ["match", ["get", "ev"], ...Object.entries(EVENT_TYPES).flatMap(([k, v]) => [k, v.radius]), 4]]],
     "circle-stroke-color": ["case", ["get", "jump"], "#ef4444",
       ["match", ["get", "ev"], ...Object.entries(EVENT_TYPES).flatMap(([k, v]) => [k, v.ring || "#0b1220"]), "#0b1220"]],
-    "circle-stroke-width": ["case", ["get", "jump"], 2.5, ["match", ["get", "ev"], "loitering", 1.6, "ais_off", 2.5, "ais_on", 2, "encounter", 2, 0.8]],
+    "circle-stroke-width": ["case", ["get", "jump"], 2.5, ["match", ["get", "ev"], "loitering", 1.6, "area_report", 2, "ais_off", 2.5, "ais_on", 2, "encounter", 2, 0.8]],
   } });
 
   map.on("click", "events", (e) => {
@@ -186,8 +187,8 @@ export function applyFilter({ start, end, vessels, eventTypes, dataLayers, selec
   const dim = (on, off) => (selected ? ["case", ["==", ["get", "vessel"], selected], on, off] : on);
   map.setPaintProperty("events", "circle-stroke-opacity", dim(1, 0.15));
   map.setPaintProperty("events", "circle-opacity", selected
-    ? ["case", ["==", ["get", "vessel"], selected], ["case", ["==", ["get", "ev"], "loitering"], 0, 0.95], 0.12]
-    : ["case", ["==", ["get", "ev"], "loitering"], 0, 0.9]);
+    ? ["case", ["==", ["get", "vessel"], selected], ["case", ["in", ["get", "ev"], ["literal", ["loitering", "area_report"]]], 0, 0.95], 0.12]
+    : ["case", ["in", ["get", "ev"], ["literal", ["loitering", "area_report"]]], 0, 0.9]);
   map.setPaintProperty("tracks", "line-opacity", dim(1, 0.15));
   map.setPaintProperty("tracks-casing", "line-opacity", dim(0.6, 0));
   map.setPaintProperty("sequence", "line-opacity", dim(0.8, 0.1));

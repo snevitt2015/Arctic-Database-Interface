@@ -64,7 +64,7 @@ export async function loadAll() {
       t: Date.parse(r.timestamp), lat: +r.lat, lon: +r.lon, ev: r.event_type || "position",
       speed: num(r.speed_used), course: num(r.course_used), source: r.source, note: r.note,
       port: r.nearest_port, kmToPort: num(r.km_to_port),
-      jump: yes(r.impossible_jump) || yes(r.speed_mismatch), calcSpeed: num(r.calc_speed_kn),
+      jump: yes(r.impossible_jump) || yes(r.speed_mismatch), calcSpeed: num(r.calc_speed_kn), posErr: num(r.pos_error_km),
       cat: catOf[r.vessel] || "other",
     }))
     .filter((r) => !isNaN(r.t) && !isNaN(r.lat))

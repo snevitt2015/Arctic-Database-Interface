@@ -103,6 +103,10 @@ def predict(track: pd.DataFrame, methods=None, hours=None, step=None) -> pd.Data
     """Run every method on one vessel's track and stack the results."""
     if track.empty:
         return pd.DataFrame()
+    if "pos_error_km" in track:          # never project from an area-name position
+        track = track[track["pos_error_km"].fillna(0.5) <= config.COARSE_POSITION_KM]
+        if track.empty:
+            return pd.DataFrame()
     results = []
     for name in methods or METHODS:
         p = METHODS[name](track, hours=hours, step=step)

@@ -104,6 +104,7 @@ export const EVENT_TYPES = {
   encounter:  { label: "Encounter with a ship",  radius: 7,   ring: "#ffffff", on: true },
   ais_off:    { label: "AIS switched off",       radius: 8,   ring: "#ef4444", on: true },
   ais_on:     { label: "AIS back on",            radius: 6,   ring: "#22c55e", on: true },
+  area_report:{ label: "AIS check (area only)",  radius: 6,   ring: "#fbbf24", on: true, hollow: true },
 };
 
 // Extra data layers (drawn from our own data, not tiles)

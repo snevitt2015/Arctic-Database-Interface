@@ -196,7 +196,8 @@ export function eventPopup(e) {
     <div class="pop-head"><span class="dot" style="background:${c.color}"></span><b>${esc(e.vessel)}</b></div>
     <div class="pop-ev">${esc(evLabel(e.ev))}</div>
     <dl>${row("Time", fmtTime(e.t))}${row("Reported as", `${esc(e.name)} · MMSI ${esc(e.mmsi)}`)}
-      ${row("Position", `${e.lat.toFixed(3)}, ${e.lon.toFixed(3)}`)}
+      ${row("Position", e.ev === "area_report" ? `${e.lat.toFixed(1)}, ${e.lon.toFixed(1)} <span class="tag amber">± ${Math.round(e.posErr)} km - area name only</span>`
+                                              : `${e.lat.toFixed(3)}, ${e.lon.toFixed(3)}`)}
       ${row("Speed", e.speed != null ? `${e.speed.toFixed(1)} kn` : "")}
       ${row("Near", esc(e.port))}${row("Source", esc(e.source))}</dl>
     ${e.note ? `<p class="note">${esc(e.note)}</p>` : ""}

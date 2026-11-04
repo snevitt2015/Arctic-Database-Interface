@@ -93,10 +93,16 @@ def check_ais_checks(checks, registry, **_):
         return out
     known = set(registry["imo"])
     c = checks[checks["kind"] == "check"]
+    from tracker.capstone_loader import area_to_position
     no_pos = c[c["lat"].isna() | c["lon"].isna()]
     if len(no_pos):
-        out.append(_issue("warning", "AIS Updates", f"{len(no_pos)} of {len(c)} checks", "Latitude / Longitude",
-                          "No coordinates - these checks can't be plotted or used to estimate positions"))
+        out.append(_issue("info", "AIS Updates", f"{len(no_pos)} of {len(c)} checks", "Latitude / Longitude",
+                          "Area name only - placed at the area's centre with its radius as the error. Fine for "
+                          "'roughly where', too coarse to match a single ship in an image"))
+        for area in sorted(set(no_pos["area"]) - {""}):
+            if area_to_position(area) is None:
+                out.append(_issue("warning", "AIS Updates", area, "Last reported area",
+                                  "Area name not recognised - add it to data/region_gazetteer.csv", area))
     for _, r in c.iterrows():
         rec = r["update_id"] or r["imo"]
         if r["imo"] not in known:

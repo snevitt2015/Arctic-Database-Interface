@@ -200,3 +200,22 @@ def test_airtable_records_look_like_excel_export(monkeypatch):
     df = airtable.load_table("AIS Updates")
     assert df.loc[0, "Ship"] == "9694725"            # linked record resolved to the ship's IMO
     assert df.loc[0, "Latitude"] == 59.9
+
+
+# ---------------------------------------------------------------- area-name positions
+def test_area_names_become_coarse_positions():
+    from tracker.capstone_loader import area_to_position
+    assert area_to_position("Barents Sea (Murmansk)")[3] == "Murmansk"           # bracketed place wins
+    assert area_to_position("Gulf of Finland (Bolshoy Bor)")[3] == "Gulf of Finland"
+    assert area_to_position("Inland Russia (Lower Volga)")[3] == "Lower Volga"   # longest name wins
+    assert area_to_position("Barents Sea")[2] >= 500                            # big radius for a sea
+    assert area_to_position("Somewhere unknown") is None
+
+
+def test_area_reports_never_create_impossible_moves():
+    t = _track().head(2)
+    area = t.tail(1).copy()
+    area["timestamp"] += pd.Timedelta(hours=1)
+    area["lat"], area["lon"], area["pos_error_km"], area["event_type"] = 74.0, 60.0, 700, "area_report"
+    df = add_features(match_to_watchlist(standardize(pd.concat([t, area])), load_vessels()), load_ports())
+    assert not df["impossible_jump"].any()

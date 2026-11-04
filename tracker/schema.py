@@ -26,6 +26,7 @@ COLUMNS = [
     "event_type",  # "position", "port_visit", "ais_off", "ais_on", "encounter", "loitering"
     "note",        # free text
     "event_id",    # the source's own ID for this record (GFW event id) - lets updates replace old copies
+    "pos_error_km",  # how far off this position could be: ~0.5 for AIS, hundreds of km for an area name
 ]
 
 
@@ -52,7 +53,7 @@ def standardize(df: pd.DataFrame) -> pd.DataFrame:
             df[col] = None
     df = df[COLUMNS]
     df["timestamp"] = pd.to_datetime(df["timestamp"], utc=True, errors="coerce")
-    for col in ["lat", "lon", "speed_kn", "course", "heading", "draught_m"]:
+    for col in ["lat", "lon", "speed_kn", "course", "heading", "draught_m", "pos_error_km"]:
         df[col] = pd.to_numeric(df[col], errors="coerce")
     for col in ["imo", "mmsi"]:
         df[col] = df[col].map(clean_id)

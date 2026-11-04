@@ -32,8 +32,14 @@ function visibleEvents() {
 }
 function update() {
   const visible = visibleEvents();
-  const latest = {};
-  for (const e of store.events) if (state.vessels.has(e.vessel) && e.t >= state.start && e.t <= state.end) latest[e.vessel] = e;
+  // latest position per ship; a precise one wins over a newer area-only one (shown as the ship marker)
+  const latest = {}, latestFine = {};
+  for (const e of store.events) {
+    if (!state.vessels.has(e.vessel) || e.t < state.start || e.t > state.end) continue;
+    latest[e.vessel] = e;
+    if (e.ev !== "area_report") latestFine[e.vessel] = e;
+  }
+  for (const v in latest) if (latestFine[v]) latest[v] = latestFine[v];
   M.applyFilter({ ...state });
   M.setLatestShips(Object.values(latest), state.selected);
   UI.renderStats(store, state, visible);

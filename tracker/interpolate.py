@@ -9,6 +9,7 @@ passed over, and how sure we are about it.
 
 Methods, best first:
   exact          a position within EXACT_MINUTES of `when`
+  area           same, but the position is only an area name (e.g. "Barents Sea", ±700 km)
   interpolated   between the positions just before and just after (along the
                  great circle, at constant speed). Only if they are close enough
                  in time that the ship couldn't have done much else.
@@ -32,6 +33,12 @@ MAX_PROJECT_HOURS = 6       # dead-reckon at most this far past the last fix
 AIS_ERROR_KM = 0.5          # typical error of a single AIS / event position
 DRIFT_KM_PER_HOUR = 5.0     # how fast uncertainty grows when we're guessing
 MAX_SHIP_KNOTS = 20.0       # a ship this slow or faster is unrealistic for the uncertainty cap
+
+
+def _err(p) -> float:
+    """This fix's own position error (area names are hundreds of km), at least AIS_ERROR_KM."""
+    v = p.get("pos_error_km") if hasattr(p, "get") else None
+    return max(AIS_ERROR_KM, float(v)) if v is not None and pd.notna(v) else AIS_ERROR_KM
 
 
 def _as_utc(t) -> pd.Timestamp:
@@ -60,7 +67,8 @@ def position_at(track: pd.DataFrame, when) -> dict:
     # 1. exact
     for p in (b, a):
         if p is not None and abs((p["timestamp"] - when).total_seconds()) <= EXACT_MINUTES * 60:
-            return {**out, "lat": p["lat"], "lon": p["lon"], "method": "exact", "uncertainty_km": AIS_ERROR_KM}
+            return {**out, "lat": p["lat"], "lon": p["lon"], "method": "exact" if _err(p) <= 20 else "area",
+                    "uncertainty_km": _err(p)}
 
     # 2. interpolate between the fixes around `when`
     if b is not None and a is not None:
@@ -71,7 +79,7 @@ def position_at(track: pd.DataFrame, when) -> dict:
             d = distance_km(b["lat"], b["lon"], a["lat"], a["lon"])
             lat, lon = move_point(b["lat"], b["lon"], bearing_deg(b["lat"], b["lon"], a["lat"], a["lon"]), d * frac)
             # biggest error is in the middle of the gap
-            unc = AIS_ERROR_KM + DRIFT_KM_PER_HOUR * gap_h * min(frac, 1 - frac)
+            unc = max(_err(b), _err(a)) + DRIFT_KM_PER_HOUR * gap_h * min(frac, 1 - frac)
             return {**out, "lat": lat, "lon": lon, "method": "interpolated", "uncertainty_km": round(unc, 2)}
 
     if b is None:
@@ -81,13 +89,13 @@ def position_at(track: pd.DataFrame, when) -> dict:
     age_h = (when - b["timestamp"]).total_seconds() / 3600
     speed = b.get("speed_used", b.get("speed_kn"))
     course = b.get("course_used", b.get("course"))
-    if age_h <= MAX_PROJECT_HOURS and pd.notna(speed) and pd.notna(course):
+    if age_h <= MAX_PROJECT_HOURS and pd.notna(speed) and pd.notna(course) and _err(b) <= 20:
         lat, lon = move_point(b["lat"], b["lon"], course, knots_to_kmh(speed) * age_h)
-        unc = AIS_ERROR_KM + DRIFT_KM_PER_HOUR * age_h
+        unc = _err(b) + DRIFT_KM_PER_HOUR * age_h
         return {**out, "lat": lat, "lon": lon, "method": "projected", "uncertainty_km": round(unc, 2)}
 
     # 4. last known position; the ship could be anywhere it can reach since then
-    unc = min(AIS_ERROR_KM + knots_to_kmh(MAX_SHIP_KNOTS) * age_h, 20000)
+    unc = min(_err(b) + knots_to_kmh(MAX_SHIP_KNOTS) * age_h, 20000)
     return {**out, "lat": b["lat"], "lon": b["lon"], "method": "last_known", "uncertainty_km": round(unc, 1)}
 
 

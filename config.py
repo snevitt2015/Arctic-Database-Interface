@@ -59,6 +59,8 @@ DARK_GAP_HOURS = 6.0          # AIS silent longer than this -> flagged as a poss
 SPEED_MISMATCH_KNOTS = 5.0    # reported vs. calculated speed differ by more -> possible spoofing
 MAX_REALISTIC_SPEED_KN = 30.0 # a tanker jumping faster than this -> position likely spoofed
 IN_PORT_KM = 10.0             # within this distance of a port -> "in port"
+COARSE_POSITION_KM = 20.0     # positions less precise than this (area names) are kept out of speed / jump maths
+GAZETTEER_FILE = DATA_DIR / "region_gazetteer.csv"   # area name -> centre + radius, for AIS checks without lat/lon
 NEAR_PORT_MAX_KM = 300.0      # further than this from every port -> nearest_port left blank
 
 # Positions further apart than this are NOT used to calculate speed/direction and are

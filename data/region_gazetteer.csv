@@ -1,0 +1,38 @@
+name,aliases,lat,lon,radius_km,kind,notes
+Murmansk,murmansk|mrm|mmk,68.97,33.08,20,port,
+St Petersburg,st petersburg|saint petersburg|st. petersburg|ruled,59.93,30.20,25,port,
+Kronshtadt,kronshtadt|kronstadt,59.99,29.77,10,port,
+Pevek,pevek,69.70,170.25,20,port,includes Pevek anchorage
+Sabetta,sabetta,71.27,72.07,20,port,
+Arkhangelsk,arkhangelsk|archangelsk,64.54,40.52,20,port,
+Dikson,dikson|dks,73.51,80.55,20,port,
+Anzali,anzali|baz,37.47,49.46,15,port,Iran
+Astrakhan,astrakhan|asf,46.35,48.04,30,port,
+Ulyanovsk,ulyanovsk|uly,54.32,48.40,30,port,
+Barents/Kara Sea boundary,barents/kara|kara/barents,73.5,55.0,900,sea,around Novaya Zemlya
+Barents Sea,barents,74.0,40.0,700,sea,
+Kara Sea,kara,76.0,70.0,700,sea,
+Pechora Sea,pechora,69.5,56.0,250,sea,
+White Sea,white sea,65.5,37.5,250,sea,
+Laptev Sea,laptev,76.0,125.0,600,sea,
+East Siberian Sea,east siberian,73.0,160.0,600,sea,
+Chukchi Sea,chukchi,70.0,-170.0,500,sea,
+Bering Sea,bering,58.0,-178.0,900,sea,
+Gulf of Ob,gulf of ob|ob bay,70.0,73.5,250,sea,
+Yenisei Gulf,yenisei,72.5,80.5,150,sea,
+Norwegian Sea,norwegian sea,69.0,5.0,800,sea,
+Norwegian coast,norwegian coast|norway coast|off norway,67.0,12.0,800,coast,long coast - large radius
+North Sea,north sea,56.0,3.0,500,sea,
+Baltic Sea,baltic,58.0,20.0,500,sea,
+Gulf of Finland,gulf of finland,60.0,26.5,200,sea,
+Black Sea,black sea,43.2,34.0,500,sea,
+Caspian Sea,caspian,42.0,50.5,600,sea,
+Western Mediterranean,western mediterranean|west med,39.0,5.0,600,sea,
+Eastern Mediterranean,eastern mediterranean|east med,34.0,28.0,600,sea,
+Red Sea,red sea,20.0,38.5,1000,sea,
+Sea of Okhotsk,okhotsk,54.0,148.0,700,sea,
+Sea of Japan,sea of japan|japan sea,40.0,135.0,700,sea,
+Off Japan coast,off japan|japan coast,36.0,140.0,900,coast,
+South-East Asia,south-east asia|southeast asia|se asia,10.0,110.0,2000,region,very coarse
+Lower Volga,lower volga,47.5,46.5,400,river,
+Volga,volga,53.0,48.0,800,river,

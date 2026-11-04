@@ -3,7 +3,6 @@ error,Watch list,ALEXEY KOSYGIN,MMSI,MMSI should be 9 digits (has 6),273253
 error,Optical imagery,Viktor Chernomydrin_St Petersburg Port 59.87:30.19,Location,"Position is 3,255 km from St Petersburg, which the text names - check the E/W or N/S letter","59.87, -30.19"
 warning,Watch list,Pecha,IMO,"No IMO - can only be matched by MMSI or name, which ships change",
 warning,Ships (registry),all ships,Length overall,Field missing - needed to compare measured ship size in images against the real ship,
-warning,AIS Updates,41 of 41 checks,Latitude / Longitude,No coordinates - these checks can't be plotted or used to estimate positions,
 warning,SAR imagery,RU-Arctic-001_S1_20260920,Date,"Date only, no time - a ship moves hundreds of km in a day; record UTC time to the second",2026-10-22
 warning,SAR imagery,RU-Arctic-001_S1_20260920,Date,Image name says 2026-09-20 but the date field says 2026-10-22,
 warning,SAR imagery,RU-Arctic-002_TSX_20260915,Date,"Date only, no time - a ship moves hundreds of km in a day; record UTC time to the second",2026-10-16
@@ -15,6 +14,7 @@ warning,SAR imagery,RU-Arctic-004_Other_20260828,Date,Image name says 2026-08-28
 warning,Optical imagery,Viktor Chernomydrin_St Petersburg Port 59.87:30.19,Date,"Date only, no time - a ship moves hundreds of km in a day; record UTC time to the second",2026-09-22
 info,Watch list,Lady R,MMSI,No MMSI recorded,
 info,Watch list,Angara,MMSI,No MMSI recorded,
+info,AIS Updates,41 of 41 checks,Latitude / Longitude,"Area name only - placed at the area's centre with its radius as the error. Fine for 'roughly where', too coarse to match a single ship in an image",
 info,AIS Updates,9179842,Update ID,"Row holds only a web link, not an AIS check",https://www.nknews.org/pro/russian-navy-escorts-ships-known-
 info,AIS Updates,9161003,Update ID,"Row holds only a web link, not an AIS check",https://airtable.com/appN11VIxqyFzwdBO/tblJ1AuWpChNXqpuI/viw
 info,SAR imagery,RU-Arctic-001_S1_20260920,Linked ship,Not linked to a ship yet,
