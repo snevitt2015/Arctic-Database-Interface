@@ -126,8 +126,12 @@ def _split_links(value) -> list:
 
 # ------------------------------------------------------------------ registry
 @_safe
-def load_registry() -> pd.DataFrame:
-    """All ships in the database: imo, name, gross_tonnage, type, year_built, flag, tracked."""
+def load_registry(include_invalid: bool = False) -> pd.DataFrame:
+    """All ships in the database: imo, name, gross_tonnage, type, year_built, flag, tracked.
+
+    Records whose IMO field isn't a 7-digit number (e.g. a header row imported as a ship:
+    'IMO number' / 'Name of ship') are left out, unless include_invalid=True (the data checks
+    use that to list them)."""
     df = _tab("Ships")
     if df.empty:
         return pd.DataFrame(columns=["imo", "name", "gross_tonnage", "type", "year_built", "flag", "tracked"])
@@ -142,6 +146,8 @@ def load_registry() -> pd.DataFrame:
     link_cols = [c for c in ["Linked 3D Models", "Linked SAR Imagery", "Linked Satellite Optical Imagery", "AIS Updates"] if c in df]
     out["tracked"] = df[link_cols].notna().any(axis=1).values
     out = out[(out["imo"] != "") & (out["name"].str.lower() != "ship name")]
+    if not include_invalid:
+        out = out[out["imo"].str.fullmatch(r"\d{7}")]
     return out.drop_duplicates("imo").reset_index(drop=True)
 
 

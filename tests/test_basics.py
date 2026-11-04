@@ -242,3 +242,10 @@ def test_airtable_tables_with_missing_empty_fields_still_load(monkeypatch):
     pos = cap.ais_checks_as_positions(checks, cap.load_registry())
     assert pos.loc[0, "event_type"] == "area_report" and pos.loc[0, "pos_error_km"] == 20
     assert "9694725" in set(cap.tracked_vessels()["imo"])
+
+
+def test_header_row_in_registry_is_skipped_not_an_error():
+    from tracker.validation import check_registry
+    reg = pd.DataFrame({"imo": ["9694725", "IMO number", "9694726"], "name": ["ARKTIKA", "Name of ship", "TYPO"]})
+    issues = {i["record"]: i["severity"] for i in check_registry(reg)}
+    assert issues["Name of ship"] == "info" and issues["TYPO"] == "error" and "ARKTIKA" not in issues

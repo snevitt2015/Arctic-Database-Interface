@@ -74,7 +74,11 @@ def check_vessels(vessels, **_):
 
 def check_registry(registry, **_):
     out = []
-    bad = registry[~registry["imo"].map(imo_is_valid)]
+    not_number = ~registry["imo"].str.fullmatch(r"\d{7}")
+    for _, r in registry[not_number].iterrows():
+        out.append(_issue("info", "Ships (registry)", r["name"], "IMO number",
+                          "Skipped - the IMO field doesn't hold a 7-digit number (looks like a header row)", r["imo"]))
+    bad = registry[~not_number & ~registry["imo"].map(imo_is_valid)]
     for _, r in bad.iterrows():
         out.append(_issue("error", "Ships (registry)", r["name"], "IMO number", "IMO check digit is wrong", r["imo"]))
     for imo, g in registry[registry["imo"].duplicated(keep=False)].groupby("imo"):
@@ -174,7 +178,7 @@ CHECKS = [check_vessels, check_registry, check_ais_checks, check_imagery]
 def run_all_checks() -> pd.DataFrame:
     from tracker import excel_loader, capstone_loader as cap
     data = {
-        "vessels": excel_loader.load_vessels(), "registry": cap.load_registry(), "checks": cap.load_ais_checks(),
+        "vessels": excel_loader.load_vessels(), "registry": cap.load_registry(include_invalid=True), "checks": cap.load_ais_checks(),
         "imagery": cap.load_imagery(), "ports": excel_loader.load_ports(),
     }
     rows = [issue for check in CHECKS for issue in check(**data)]
