@@ -219,3 +219,26 @@ def test_area_reports_never_create_impossible_moves():
     area["lat"], area["lon"], area["pos_error_km"], area["event_type"] = 74.0, 60.0, 700, "area_report"
     df = add_features(match_to_watchlist(standardize(pd.concat([t, area])), load_vessels()), load_ports())
     assert not df["impossible_jump"].any()
+
+
+def test_airtable_tables_with_missing_empty_fields_still_load(monkeypatch):
+    """Airtable's API omits fields that are empty in every record (e.g. Latitude)."""
+    import config
+    from tracker import airtable, capstone_loader as cap
+    monkeypatch.setattr(config, "AIRTABLE_TOKEN", "test")
+    monkeypatch.setattr(cap, "_force_excel", False)
+    airtable._cache.clear()
+    fake = {
+        "Ships": [{"id": "recS", "fields": {"IMO number": 9694725, "Ship name": "ARKTIKA", "Gross tonnage": 28494,
+                                            "Vessel type": "Icebreaker", "Year built": 2020, "Flag / registry": "Russia (RUS)",
+                                            "AIS Updates": ["recU"]}}],
+        "AIS Updates": [{"id": "recU", "fields": {"Update ID": "ARKTIKA – 2026-10-28", "Ship": ["recS"],
+                                                  "Last reported area": "Barents Sea (Murmansk)",
+                                                  "Checked (UTC)": "2026-10-28T15:18:00.000Z"}}],   # no Latitude/Longitude at all
+    }
+    monkeypatch.setattr(airtable, "fetch_records", lambda table: fake.get(table, []))
+    checks = cap.load_ais_checks()
+    assert checks.loc[0, "imo"] == "9694725" and pd.isna(checks.loc[0, "lat"])
+    pos = cap.ais_checks_as_positions(checks, cap.load_registry())
+    assert pos.loc[0, "event_type"] == "area_report" and pos.loc[0, "pos_error_km"] == 20
+    assert "9694725" in set(cap.tracked_vessels()["imo"])

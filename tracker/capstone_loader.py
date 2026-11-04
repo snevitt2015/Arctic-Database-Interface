@@ -25,13 +25,67 @@ from tracker.schema import clean_id, standardize, empty_table
 
 
 _source_note = {}
+_force_excel = False   # set after a problem with live Airtable data, so the rest of the run uses the export
+
+# Every field the code reads, per table. Airtable's API leaves out fields that are empty in
+# EVERY record (e.g. Latitude today), so missing ones are added back as empty columns.
+EXPECTED_FIELDS = {
+    "Ships": ["IMO number", "Ship name", "Gross tonnage", "Vessel type", "Year built", "Flag / registry",
+              "Linked 3D Models", "Linked SAR Imagery", "Linked Satellite Optical Imagery", "AIS Updates"],
+    "AIS Updates": ["Update ID", "Ship", "MMSI", "Call sign", "Last reported area", "Last position time (UTC)",
+                    "Position age at check", "AIS status", "Nav status", "Speed (kn)", "Course (deg)", "Draught (m)",
+                    "Reported destination", "Last voyage", "AIS source", "Data source", "Latitude", "Longitude",
+                    "Checked (UTC)", "Notes"],
+    "3D Models": ["Model name", "Linked ship", "Source", "File format", "File link", "Verification status"],
+    "SAR Imagery": ["Image name", "Linked ship", "Acquisition date", "Sensor platform", "Resolution (meters)",
+                    "Polarization", "Incidence angle (degrees)", "Geolocation", "Image source", "Source reference",
+                    "Annotation status", "Verification status", "Linked ship IMO number", "SAR image summary",
+                    "Annotation improvement suggestions"],
+    "Satellite Optical": ["Image ID", "Capture date", "Satellite name", "Sensor type", "Ground Sample Distance(m)",
+                          "Cloud cover (%)", "Off Nadir Angle", "Location (lat/lon or AOI)", "File download link",
+                          "Source provider", "License / usage rights", "Linked ship", "Verification status",
+                          "Analyst notes", "Linked Ship IMO"],
+    "Ship Type Statistics": ["Ship Type", "Number in Service"],
+}
+
+
+def _with_expected(df: pd.DataFrame, start: str) -> pd.DataFrame:
+    if df.empty and not len(df.columns):
+        return df
+    for col in EXPECTED_FIELDS.get(start, []):
+        if col not in df.columns:
+            df[col] = None
+    return df
+
+
+def _safe(fn):
+    """If live Airtable data breaks a loader, say why and redo it from the Excel export,
+    so one odd record never stops the daily run."""
+    def wrapper(*args, **kwargs):
+        global _force_excel
+        try:
+            return fn(*args, **kwargs)
+        except Exception as e:
+            from tracker import airtable
+            if _force_excel or not airtable.is_configured():
+                raise
+            print(f"Airtable data problem in {fn.__name__}: {type(e).__name__}: {e} - using the Excel export instead")
+            _force_excel = True
+            return fn(*args, **kwargs)
+    wrapper.__name__ = fn.__name__
+    wrapper.__doc__ = fn.__doc__
+    return wrapper
 
 
 def _tab(start: str) -> pd.DataFrame:
+    return _with_expected(_read_tab(start), start)
+
+
+def _read_tab(start: str) -> pd.DataFrame:
     """Read a table: live from Airtable if a token is set, otherwise the Excel export tab
     whose name starts with `start` (empty table if missing)."""
     from tracker import airtable
-    if airtable.is_configured():
+    if airtable.is_configured() and not _force_excel:
         key = next((k for k in airtable.config.AIRTABLE_TABLES if k.lower().startswith(start.lower())), None)
         if key:
             try:
@@ -71,6 +125,7 @@ def _split_links(value) -> list:
 
 
 # ------------------------------------------------------------------ registry
+@_safe
 def load_registry() -> pd.DataFrame:
     """All ships in the database: imo, name, gross_tonnage, type, year_built, flag, tracked."""
     df = _tab("Ships")
@@ -91,6 +146,7 @@ def load_registry() -> pd.DataFrame:
 
 
 # ------------------------------------------------------------------ AIS checks
+@_safe
 def load_ais_checks() -> pd.DataFrame:
     """The weekly manual AIS checks. Rows that only hold a web link become `source_link` rows."""
     df = _tab("AIS Updates")
@@ -191,6 +247,7 @@ def ais_checks_as_positions(checks: pd.DataFrame, registry: pd.DataFrame) -> pd.
 
 
 # ------------------------------------------------------------------ imagery, models
+@_safe
 def load_imagery() -> pd.DataFrame:
     """SAR + optical satellite images in one table, with a parsed position where possible."""
     rows = []
@@ -227,6 +284,7 @@ def load_imagery() -> pd.DataFrame:
     return df
 
 
+@_safe
 def load_models() -> pd.DataFrame:
     df = _tab("3D Models")
     if df.empty:
@@ -238,6 +296,7 @@ def load_models() -> pd.DataFrame:
     })
 
 
+@_safe
 def load_type_stats() -> pd.DataFrame:
     df = _tab("Ship Type Statistics")
     if df.empty:
@@ -246,6 +305,7 @@ def load_type_stats() -> pd.DataFrame:
 
 
 # ------------------------------------------------------------------ watch list
+@_safe
 def tracked_vessels() -> pd.DataFrame:
     """Tracked ships in the same columns as the Excel watch list (for excel_loader)."""
     reg = load_registry()
