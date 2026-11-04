@@ -1,6 +1,6 @@
-name,lat,lon,coords_source
-Murmansk,68.98,33.05611111111111,excel
-Severodvinsk,64.56666666666666,39.86666666666667,excel
-Sabetta,71.27,72.07,approximate - verify
-Arkhangelsk,64.54,40.52,approximate - verify
-Tieshan (China),21.48,109.57,approximate - verify
+name,lat,lon,coords_source,berths,depth_capacity,managing_company,primary_use,infrastructure,notes
+Murmansk,68.98,33.05611111111111,excel,13,,JSC Murmansk,"Coal, LNG, fishing",52 gantry cranes with 40 ton capacity,"SEUK (siberian coal energy company) owns 75% of share of capital and another 22% by eurochem, both companies controlled by Andrey Melnichenko"
+Severodvinsk,64.56666666666666,39.86666666666667,excel,,,,,,Main industry is defense construction and repair. High concentration of submarines. 
+Sabetta,71.27,72.07,approximate - verify,,,,,,
+Arkhangelsk,64.54,40.52,approximate - verify,,,,,,
+Tieshan (China),21.48,109.57,approximate - verify,,,,,,

@@ -62,7 +62,9 @@ def main():
     (pd.concat(predictions) if predictions else pd.DataFrame(columns=pred_cols)).to_csv(
         DATA_DIR / "output_predictions.csv", index=False)
     # Small extra tables for the web map (index.html)
-    ports[["name", "lat", "lon", "coords_source"]].to_csv(DATA_DIR / "output_ports.csv", index=False)
+    port_cols = ["name", "lat", "lon", "coords_source", "berths", "depth_capacity", "managing_company",
+                 "primary_use", "infrastructure", "notes"]
+    ports.reindex(columns=port_cols).to_csv(DATA_DIR / "output_ports.csv", index=False)
     vessels[["name", "type", "flag", "imo", "mmsi", "sanctioned", "notes"]].to_csv(
         DATA_DIR / "output_vessels.csv", index=False)
     identity_changes(df).to_csv(DATA_DIR / "output_identities.csv", index=False)

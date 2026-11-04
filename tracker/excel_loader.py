@@ -78,7 +78,10 @@ def _parse_coordinates(text):
 def load_ports() -> pd.DataFrame:
     """Ports with decimal lat/lon. `coords_source` tells you if the value is from Excel or approximate."""
     df = _read_tab("Ports", "Name")
-    df = df.rename(columns={"Name": "name", "Coordinates": "coordinates", "Notes": "notes"})
+    df = df.rename(columns={"Name": "name", "Coordinates": "coordinates", "Notes": "notes",
+                            "Berths": "berths", "Depth/Capacity": "depth_capacity",
+                            "Managing Company": "managing_company", "Primary Use": "primary_use",
+                            "Notable Infrastructure": "infrastructure"})
     lats, lons, srcs = [], [], []
     for _, p in df.iterrows():
         coords = _parse_coordinates(p.get("coordinates"))

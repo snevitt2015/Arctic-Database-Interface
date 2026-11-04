@@ -15,19 +15,33 @@ It combines open-source intelligence (OSINT) with our Excel watch list:
 
 ---
 
-## 0. Interactive web map (no install)
+## 0. Arctic Vessel Watch - interactive map (no install)
 
 **https://snevitt2015.github.io/Arctic-Database-Interface/**
 
-The page (`index.html`) reads the `data/output_*.csv` files, which the daily GitHub Action refreshes,
-so it updates itself every morning. You can:
-* pick a time window (30 days / 90 days / 1 year / all since 2012), drag the slider, or press ▶ to play through time
-* tick ships on and off; click a ship to see its names, MMSIs, last position, and AIS-off count
-* click any dot for its details
-* use the tables underneath (AIS-off periods, impossible moves, identity changes, encounters, last seen) and click a row to jump to it
+A full-screen viewer for the Russian Arctic, refreshed every morning by the daily GitHub Action:
+* **Imagery**: high-resolution satellite (zoom right into port terminals), ocean-depth, dark and light maps
+* **NASA daily layers**: true-colour satellite image of any day, and sea-ice concentration
+* **Sea marks** (OpenSeaMap): buoys, lights, harbour features when zoomed in near a coast
+* **3D globe** (no Arctic stretching) or flat map
+* **Ships by type**: LNG carriers, oil/chemical/bunkering tankers, cargo, container ships, icebreakers.
+  Click one for its card: identity, activity, every name and MMSI it has used, most-visited ports, AIS-off periods
+* **Ports**: click for a profile (from the Excel sheet) plus which watch-list ships were recorded there; "View port up close" flies in on satellite imagery
+* **Timeline**: activity histogram since 2012 - pick 7 d / 30 d / 90 d / 1 yr / all, drag along it, or press ▶ to replay
+* **Alerts**: AIS switched off, impossible moves, encounters and loitering, identity changes - click a row to jump there
+* **Search**: ship name, IMO, MMSI, a former name, or a port
 
-One-time setup: repo **Settings → Pages → Build and deployment → Source: Deploy from a branch →
-Branch: `main`, folder `/ (root)` → Save**.
+### Adding to the viewer (code in `web/`)
+| To add... | Edit |
+|---|---|
+| a basemap or overlay (any {z}/{x}/{y} tile service or NASA layer) | `BASEMAPS` / `OVERLAYS` in `web/js/config.js` |
+| a ship type (e.g. icebreakers, container ships) and its colour | `SHIP_CATEGORIES` in `web/js/config.js` |
+| new information on a ship or port card | one function in `VESSEL_SECTIONS` / `PORT_SECTIONS` in `web/js/cards.js` |
+| a new alert table | `ALERT_TABS` in `web/js/ui.js` |
+| a new data file | `loadAll()` in `web/js/data.js` (and write it from `run_update.py`) |
+| more ports | `data/reference_ports.csv` (coordinates there are approximate - verify) or the Excel Ports tab |
+
+To try changes locally: `python -m http.server` in the repo folder, then open http://localhost:8000
 
 ## 1. Install (once)
 
