@@ -4,11 +4,11 @@
   `state` = what the user has chosen (time window, ships, layers, selection).
   Whenever it changes we call update(), which redraws the map filters and panels.
 */
-import { BASEMAPS, OVERLAYS, DATA_LAYERS, EVENT_TYPES, DEFAULT_BASEMAP } from "./config.js";
+import { BASEMAPS, OVERLAYS, DATA_LAYERS, EVENT_TYPES, DEFAULT_BASEMAP, VECTOR_LAYERS } from "./config.js";
 import { loadAll } from "./data.js";
 import * as M from "./map.js";
 import * as UI from "./ui.js";
-import { vesselCard, portCard, eventPopup } from "./cards.js";
+import { vesselCard, portCard, eventPopup, fleetCard, imageryCard, routePopup } from "./cards.js";
 
 const $ = (s) => document.querySelector(s);
 const DAY = 864e5;
@@ -21,6 +21,8 @@ const state = {
   basemap: DEFAULT_BASEMAP, projection: "globe", leftTab: "vessels", alertTab: "dark", alertsOpen: false,
   overlays: Object.fromEntries(OVERLAYS.map((o) => [o.id, { on: o.on, opacity: o.opacity }])),
   overlayDate: today, today,
+  fleetType: "", showAllTypes: false,
+  vectorsOn: Object.fromEntries(VECTOR_LAYERS.map((v) => [v.id, new Set(v.on || [])])), vectorData: {},
 };
 let store, alertRows = [];
 
@@ -74,13 +76,27 @@ function selectPort(p) {
 M.on("eventClick", (id, lngLat) => M.showPopup(lngLat, eventPopup(store.events[id])));
 M.on("shipClick", (name) => selectShip(name, false));
 M.on("portClick", (p) => selectPort(p));
+M.on("imageryClick", (img) => { state.selected = null; openDetail(imageryCard(img, store)); update(); M.flyTo(img.lon, img.lat, 6); });
+M.on("vectorClick", (props, lngLat) => M.showPopup(lngLat, routePopup(props)));
+
+function openFleetShip(imo) {
+  const onList = store.vessels.find((v) => v.imo === imo);
+  if (onList) return selectShip(onList.name);
+  state.selected = null;
+  openDetail(fleetCard(store.fleetByImo[imo]));
+  update();
+}
 
 // ---------------------------------------------------------------- clicks anywhere (event delegation)
 document.addEventListener("click", (ev) => {
   const t = ev.target.closest("[data-ship],[data-toggle],[data-cat],[data-port],[data-close],[data-zoom-ship],[data-only-ship]," +
-    "[data-zoom-port],[data-fly],[data-window],[data-left-tab],[data-alert-tab],[data-alert-row],[data-basemap],[data-proj],#alerts-toggle,#play,#home");
+    "[data-zoom-port],[data-fly],[data-window],[data-left-tab],[data-alert-tab],[data-alert-row],[data-basemap],[data-proj],#alerts-toggle,#play,#home," +
+    "[data-fleet],[data-fleet-type],[data-more-types]");
   if (!t) return;
   const d = t.dataset;
+  if (d.fleet) return openFleetShip(d.fleet);
+  if (d.fleetType !== undefined) { ev.preventDefault(); state.fleetType = state.fleetType === d.fleetType ? "" : d.fleetType; return UI.renderFleet(store, state); }
+  if (d.moreTypes !== undefined) { ev.preventDefault(); state.showAllTypes = !state.showAllTypes; return UI.renderFleet(store, state); }
   if (d.toggle !== undefined) { t.checked ? state.vessels.add(d.toggle) : state.vessels.delete(d.toggle); ev.stopPropagation(); return update(); }
   if (d.cat) { store.vessels.filter((v) => v.cat === d.cat).forEach((v) => (t.checked ? state.vessels.add(v.name) : state.vessels.delete(v.name))); return update(); }
   if (d.ship !== undefined && !t.matches("input")) return selectShip(d.ship);
@@ -117,10 +133,17 @@ document.addEventListener("input", (ev) => {
   if (d.opacity) { state.overlays[d.opacity].opacity = +t.value; M.setOverlayOpacity(d.opacity, +t.value); }
   if (d.datalayer) { t.checked ? state.dataLayers.add(d.datalayer) : state.dataLayers.delete(d.datalayer); update(); }
   if (d.evtype) { t.checked ? state.eventTypes.add(d.evtype) : state.eventTypes.delete(d.evtype); update(); }
+  if (d.vector) {
+    const set = state.vectorsOn[d.vector];
+    t.checked ? set.add(d.feature) : set.delete(d.feature);
+    M.setVectorVisible(d.vector, set);
+  }
   if (t.id === "overlay-date" && t.value) { state.overlayDate = t.value; M.setOverlayDate(t.value); }
   if (t.id === "search") {
     state.search = t.value.trim();
-    if (state.leftTab === "ports") UI.renderPorts(store, state); else update();
+    if (state.leftTab === "ports") UI.renderPorts(store, state);
+    else if (state.leftTab === "fleet") UI.renderFleet(store, state);
+    else update();
   }
 });
 $("#search").addEventListener("keydown", (ev) => {
@@ -129,17 +152,22 @@ $("#search").addEventListener("keydown", (ev) => {
   const ship = store.vessels.find((v) => v.name.toLowerCase().includes(q) || v.imo === q || v.mmsi === q ||
     (store.identities[v.name]?.names || []).some((n) => n.toLowerCase().includes(q)));
   const port = store.ports.find((p) => p.name.toLowerCase().includes(q));
-  if (state.leftTab === "ports" && port) selectPort(port);
+  const reg = store.fleet.find((f) => f.imo === q || f.name.toLowerCase() === q);
+  if (state.leftTab === "fleet" && reg) openFleetShip(reg.imo);
+  else if (state.leftTab === "ports" && port) selectPort(port);
   else if (ship) selectShip(ship.name);
   else if (port) selectPort(port);
+  else if (reg) openFleetShip(reg.imo);
 });
 
 function showLeftTab(tab) {
   state.leftTab = tab;
   document.querySelectorAll("[data-left-tab]").forEach((b) => b.classList.toggle("on", b.dataset.leftTab === tab));
   document.querySelectorAll(".tab-body").forEach((el) => (el.hidden = el.id !== "tab-" + tab));
-  $("#search").placeholder = tab === "ports" ? "Search ports…" : "Search ship, IMO, MMSI or former name…";
+  $("#search").placeholder = tab === "ports" ? "Search ports…" : tab === "fleet" ? "Search 4,000+ registry ships by name, IMO or type…"
+    : "Search ship, IMO, MMSI or former name…";
   if (tab === "ports") UI.renderPorts(store, state);
+  if (tab === "fleet") UI.renderFleet(store, state);
   if (tab === "layers") UI.renderLayers(state);
   if (tab === "vessels") update();
 }
@@ -175,6 +203,10 @@ window.addEventListener("resize", () => store && UI.renderTimeline(store, state)
     M.setBasemap(state.basemap);
     M.setOverlayDate(state.overlayDate);
     M.setData(store);
+    state.vectorData = store.vectors;
+    M.setVectors(store.vectors);
+    VECTOR_LAYERS.forEach((v) => M.setVectorVisible(v.id, state.vectorsOn[v.id]));
+    M.setImagery(store.imagery);
     UI.renderLegend();
     showLeftTab("vessels");
     setWindow(90, store.maxT);

@@ -202,3 +202,26 @@ body:has(#detail.open) .maplibregl-ctrl-bottom-right { right: 386px; }
   .legend, .credits { display: none; }
   .alerts { left: 10px; }
 }
+
+/* ---------------- added: routes, imagery, fleet tab */
+.route-label { font-size: 11px; font-weight: 700; letter-spacing: .04em; font-style: italic; pointer-events: none;
+               text-shadow: 0 0 3px #0b1220, 0 0 6px #0b1220, 0 1px 2px #000; white-space: nowrap; opacity: .95; }
+.route-swatch { display: inline-block; width: 18px; height: 0; border-top: 3px solid; vertical-align: 3px; margin-right: 2px; }
+.route-swatch.dashed { border-top-style: dashed; }
+.img-marker { width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; cursor: pointer;
+              box-shadow: 0 1px 5px rgba(0,0,0,.6); border: 1.5px solid #fff; }
+.img-marker.sar { background: #7c3aed; color: #fff; }
+.img-marker.optical { background: #0891b2; color: #fff; }
+.img-marker:hover { transform: scale(1.15); }
+.tag.green { background: rgba(34,197,94,.16); color: #bbf7d0; }
+.check-latest { background: rgba(255,255,255,.03); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; margin-bottom: 8px; }
+.check-latest dl { margin-top: 6px; }
+.src { padding: 2px 0; } .src a, #detail a { color: var(--accent); text-decoration: none; } .src a:hover { text-decoration: underline; }
+.fleet-sum { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 6px 4px 4px; }
+.fleet-sum div { background: rgba(255,255,255,.04); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
+.fleet-sum b { display: block; font-size: 18px; } .fleet-sum span { color: var(--muted); font-size: 11px; }
+.bar.click { cursor: pointer; border-radius: 6px; padding: 2px 4px; grid-template-columns: 1fr 70px 34px; }
+.bar.click:hover, .bar.click.on { background: rgba(125,211,252,.1); }
+.tab-body h5 a, a.more { color: var(--accent); font-weight: 400; text-transform: none; letter-spacing: 0; text-decoration: none; }
+a.more { display: block; padding: 4px 6px; font-size: 12px; }
+.ship-row.fleet { grid-template-columns: 14px 1fr; }

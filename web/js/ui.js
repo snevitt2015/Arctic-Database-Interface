@@ -5,7 +5,7 @@
   Each render function draws one part of the screen from `store` + `state`.
   main.js decides WHEN to call them.
 */
-import { SHIP_CATEGORIES, EVENT_TYPES, BASEMAPS, OVERLAYS, DATA_LAYERS } from "./config.js";
+import { SHIP_CATEGORIES, EVENT_TYPES, BASEMAPS, OVERLAYS, DATA_LAYERS, VECTOR_LAYERS } from "./config.js";
 import { esc, fmtTime, fmtDay } from "./cards.js";
 
 const $ = (sel) => document.querySelector(sel);
@@ -44,11 +44,46 @@ export function renderVessels(store, state, latestByShip) {
         return `<div class="ship-row ${state.selected === v.name ? "selected" : ""}" data-ship="${esc(v.name)}">
           <input type="checkbox" data-toggle="${esc(v.name)}" ${state.vessels.has(v.name) ? "checked" : ""}>
           <div><div class="name">${esc(v.name)}</div>
-          <div class="meta">${last ? `${fmtDay(last.t)} · ${last.lat.toFixed(1)}°, ${last.lon.toFixed(1)}°` : "no records in window"}</div>
+          <div class="meta">${last ? `${fmtDay(last.t)} · ${last.lat.toFixed(1)}°, ${last.lon.toFixed(1)}°` : lastCheck(store, v)}</div>
           ${flags ? `<div class="flags">${flags}</div>` : ""}</div></div>`;
       }).join("")}</div>`;
   }).join("");
   $("#tab-vessels").innerHTML = html || `<p class="muted pad">No ships match “${esc(state.search)}”.</p>`;
+}
+
+function lastCheck(store, v) {
+  const c = (store.checks[v.imo] || []).filter((x) => x.kind === "check").at(-1);
+  return c ? `AIS check ${fmtDay(c.t)} · ${esc(c.area || "?")}` : "no records in window";
+}
+
+// ---------------------------------------------------------------- fleet tab (Capstone registry)
+export function renderFleet(store, state) {
+  const q = state.search.toLowerCase();
+  const counts = {};
+  store.fleet.forEach((f) => (counts[f.type] = (counts[f.type] || 0) + 1));
+  const top = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+  const max = top[0]?.[1] || 1;
+  let list = store.fleet.filter((f) => (!state.fleetType || f.type === state.fleetType) &&
+    (!q || f.name.toLowerCase().includes(q) || f.imo.includes(q) || f.type.toLowerCase().includes(q)));
+  if (!q && !state.fleetType) list = list.filter((f) => f.tracked);
+  const shown = list.sort((a, b) => (b.tracked - a.tracked) || (b.gt || 0) - (a.gt || 0)).slice(0, 80);
+  const onList = new Set(store.vessels.map((v) => v.imo));
+  $("#tab-fleet").innerHTML = `
+    <div class="fleet-sum"><div><b>${store.fleet.length.toLocaleString()}</b><span>Russian-flagged ships in registry</span></div>
+      <div><b>${store.fleet.filter((f) => f.tracked).length}</b><span>tracked by the team</span></div></div>
+    <h5>Fleet by type ${state.fleetType ? `<a href="#" data-fleet-type="">clear filter</a>` : "· click to filter"}</h5>
+    ${top.slice(0, state.showAllTypes ? 999 : 12).map(([t, n]) => `
+      <div class="bar click ${state.fleetType === t ? "on" : ""}" data-fleet-type="${esc(t)}"><span>${esc(t)}</span>
+        <i style="width:${(n / max) * 100}%;background:${catInfo(SHIP_CATEGORIES.find((c) => c.match.test(t))?.id).color}"></i><b>${n}</b></div>`).join("")}
+    ${top.length > 12 ? `<a href="#" class="more" data-more-types>${state.showAllTypes ? "show fewer" : `show all ${top.length} types`}</a>` : ""}
+    <h5>${q || state.fleetType ? `${list.length.toLocaleString()} matching ships${list.length > 80 ? " (largest 80 shown)" : ""}` : "Ships the team tracks"}</h5>
+    ${shown.map((f) => `<div class="ship-row fleet" data-fleet="${esc(f.imo)}">
+        <span class="dot" style="background:${catInfo(f.cat).color};margin-top:5px"></span>
+        <div><div class="name">${esc(f.name)} ${onList.has(f.imo) ? `<span class="tag green">watch list</span>` : ""}</div>
+        <div class="meta">${esc(f.type)} · IMO ${esc(f.imo)} · ${f.gt ? f.gt.toLocaleString() + " GT" : ""} · ${esc(f.year)}</div></div></div>`).join("")
+      || `<p class="muted pad">No ships match.</p>`}
+    ${store.typeStats.length ? `<h5>Team's ship-type statistics</h5><table class="mini"><tbody>${store.typeStats.map((s) =>
+      `<tr><td>${esc(s.ship_type)}</td><td class="num">${esc(s.number_in_service)}</td></tr>`).join("")}</tbody></table>` : ""}`;
 }
 
 // ---------------------------------------------------------------- ports tab
@@ -80,6 +115,12 @@ export function renderLayers(state) {
         ${o.note ? `<div class="hint">${esc(o.note)}</div>` : ""}</div>`;
     }).join("")}${g === "NASA daily" ? `<label class="date-row">Image date
         <input type="date" id="overlay-date" value="${state.overlayDate}" max="${state.today}"></label>` : ""}`).join("")}
+    ${VECTOR_LAYERS.map((cfg) => {
+      const feats = state.vectorData[cfg.id]?.features || [];
+      return `<h5>${esc(cfg.label)}</h5>` + feats.map((ft) => `<label class="layer-row">
+        <input type="checkbox" data-vector="${cfg.id}" data-feature="${esc(ft.properties.id)}" ${state.vectorsOn[cfg.id].has(ft.properties.id) ? "checked" : ""}>
+        <span class="route-swatch ${(cfg.dashed || []).includes(ft.properties.id) ? "dashed" : ""}" style="border-color:${esc(ft.properties.color)}"></span> ${esc(ft.properties.name)}</label>`).join("");
+    }).join("")}
     <h5>Vessel data</h5>
     ${DATA_LAYERS.map((d) => `<label class="layer-row"><input type="checkbox" data-datalayer="${d.id}" ${state.dataLayers.has(d.id) ? "checked" : ""}> ${esc(d.label)}</label>`).join("")}
     <h5>Event types</h5>

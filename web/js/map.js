@@ -8,10 +8,12 @@
 
   The UI never touches MapLibre directly; it calls the functions exported here.
 */
-import { BASEMAPS, OVERLAYS, SHIP_CATEGORIES, EVENT_TYPES, START_VIEW, MAX_GAP_HOURS } from "./config.js";
+import { BASEMAPS, OVERLAYS, SHIP_CATEGORIES, EVENT_TYPES, START_VIEW, MAX_GAP_HOURS, VECTOR_LAYERS } from "./config.js";
 
 let map;
-const handlers = { eventClick: () => {}, shipClick: () => {}, portClick: () => {} };
+const handlers = { eventClick: () => {}, shipClick: () => {}, portClick: () => {}, imageryClick: () => {}, vectorClick: () => {} };
+const imageryMarkers = [];
+const vectorLabels = {};   // layer id -> [{featureId, marker}]
 const shipMarkers = new Map();   // vessel name -> maplibregl.Marker
 const portMarkers = [];
 let overlayDate = null;
@@ -178,6 +180,7 @@ export function applyFilter({ start, end, vessels, eventTypes, dataLayers, selec
   vis("darkgaps", dataLayers.has("darkgaps")); vis("sequence", dataLayers.has("sequence"));
   vis("pred-lines", dataLayers.has("predictions")); vis("pred-areas", dataLayers.has("predictions"));
   portMarkers.forEach((m) => (m.getElement().style.display = dataLayers.has("ports") ? "" : "none"));
+  imageryMarkers.forEach((m) => (m.getElement().style.display = dataLayers.has("imagery") ? "" : "none"));
 
   // fade everything except the selected ship
   const dim = (on, off) => (selected ? ["case", ["==", ["get", "vessel"], selected], on, off] : on);
@@ -233,6 +236,69 @@ function addPortMarkers(ports) {
       <span class="label">${p.name}</span>`;
     el.addEventListener("click", (ev) => { ev.stopPropagation(); handlers.portClick(p); });
     portMarkers.push(new maplibregl.Marker({ element: el, anchor: "left", offset: [-9, 0] }).setLngLat([p.lon, p.lat]).addTo(map));
+  }
+}
+
+// ------------------------------------------------------------------ vector layers (sea routes etc.)
+export function setVectors(vectors) {
+  for (const cfg of VECTOR_LAYERS) {
+    const data = vectors[cfg.id];
+    if (!data) continue;
+    map.addSource("vec-" + cfg.id, { type: "geojson", data });
+    const dashed = ["in", ["get", "id"], ["literal", cfg.dashed || []]];
+    const width = ["case", ["in", ["get", "id"], ["literal", cfg.thin || []]], 1.3, 2.6];
+    const before = map.getLayer("sequence") ? "sequence" : undefined;
+    map.addLayer({ id: `vec-${cfg.id}-casing`, type: "line", source: "vec-" + cfg.id, filter: ["!", dashed],
+      layout: { "line-join": "round", "line-cap": "round" },
+      paint: { "line-color": "#0b1220", "line-opacity": 0.55, "line-width": ["+", width, 2.5] } }, before);
+    map.addLayer({ id: `vec-${cfg.id}-solid`, type: "line", source: "vec-" + cfg.id, filter: ["!", dashed],
+      layout: { "line-join": "round", "line-cap": "round" },
+      paint: { "line-color": ["get", "color"], "line-width": width, "line-opacity": 0.9 } }, before);
+    map.addLayer({ id: `vec-${cfg.id}-dashed`, type: "line", source: "vec-" + cfg.id, filter: dashed,
+      paint: { "line-color": ["get", "color"], "line-width": width, "line-opacity": 0.85, "line-dasharray": [3, 2.5] } }, before);
+    for (const part of ["solid", "dashed"]) {
+      const lid = `vec-${cfg.id}-${part}`;
+      map.on("click", lid, (e) => handlers.vectorClick(e.features[0].properties, e.lngLat));
+      map.on("mouseenter", lid, () => (map.getCanvas().style.cursor = "pointer"));
+      map.on("mouseleave", lid, () => (map.getCanvas().style.cursor = ""));
+    }
+    // a name label part-way along each line
+    vectorLabels[cfg.id] = data.features.map((f) => {
+      const coords = f.geometry.type === "MultiLineString" ? f.geometry.coordinates[0] : f.geometry.coordinates;
+      const at = coords[Math.floor(coords.length * (f.properties.labelAt ?? 0.45))];
+      const el = document.createElement("div");
+      el.className = "route-label";
+      el.style.color = f.properties.color;
+      el.textContent = f.properties.name;
+      return { featureId: f.properties.id, marker: new maplibregl.Marker({ element: el }).setLngLat(at).addTo(map) };
+    });
+  }
+}
+export function setVectorVisible(layerId, onIds) {
+  const filterOn = ["in", ["get", "id"], ["literal", [...onIds]]];
+  const cfg = VECTOR_LAYERS.find((v) => v.id === layerId);
+  const dashed = ["in", ["get", "id"], ["literal", cfg.dashed || []]];
+  if (!map.getLayer(`vec-${layerId}-solid`)) return;
+  map.setFilter(`vec-${layerId}-casing`, ["all", ["!", dashed], filterOn]);
+  map.setFilter(`vec-${layerId}-solid`, ["all", ["!", dashed], filterOn]);
+  map.setFilter(`vec-${layerId}-dashed`, ["all", dashed, filterOn]);
+  (vectorLabels[layerId] || []).forEach((l) => (l.marker.getElement().style.display = onIds.has(l.featureId) ? "" : "none"));
+}
+
+// ------------------------------------------------------------------ imagery markers (Capstone DB)
+const ICON_SAR = `<svg viewBox="0 0 24 24" width="14" height="14"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+  d="M5 19a10 10 0 0 1 0-14M8.5 15.5a5 5 0 0 1 0-7"/><circle cx="13" cy="12" r="2.2" fill="currentColor"/><path stroke="currentColor" stroke-width="2" d="M13 12l7 7"/></svg>`;
+const ICON_OPT = `<svg viewBox="0 0 24 24" width="14" height="14"><path fill="currentColor" d="M9 4l-1.5 2H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-3.5L15 4H9zm3 4.5a4.5 4.5 0 1 1 0 9 4.5 4.5 0 0 1 0-9zm0 2a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5z"/></svg>`;
+export function setImagery(images) {
+  imageryMarkers.forEach((m) => m.remove());
+  imageryMarkers.length = 0;
+  for (const img of images.filter((i) => i.lat != null && i.lon != null)) {
+    const el = document.createElement("div");
+    el.className = "img-marker " + (img.kind === "SAR" ? "sar" : "optical");
+    el.innerHTML = img.kind === "SAR" ? ICON_SAR : ICON_OPT;
+    el.title = `${img.kind} image · ${img.date || ""}`;
+    el.addEventListener("click", (ev) => { ev.stopPropagation(); handlers.imageryClick(img); });
+    imageryMarkers.push(new maplibregl.Marker({ element: el }).setLngLat([img.lon, img.lat]).addTo(map));
   }
 }
 

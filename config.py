@@ -20,6 +20,7 @@ except ImportError:
 ROOT = Path(__file__).parent
 DATA_DIR = ROOT / "data"
 EXCEL_FILE = DATA_DIR / "Russian_Tankers_and_Port_Data.xlsx"
+CAPSTONE_FILE = DATA_DIR / "Arctic_Capstone_Database.xlsx"   # team Airtable export (registry, AIS checks, imagery)
 POSITIONS_FILE = DATA_DIR / "positions.csv"        # every position ever collected (all dates) - committed to GitHub
 PRIVATE_POSITIONS_FILE = DATA_DIR / "imports" / "private_positions.csv"  # MarineTraffic/TankerMap rows - stays on your computer
 DEMO_FILE = DATA_DIR / "demo_positions.csv"         # SYNTHETIC test data only

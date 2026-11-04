@@ -37,8 +37,8 @@ def _read_tab(sheet_name: str, must_have: str) -> pd.DataFrame:
     raise ValueError(f"Could not find a '{must_have}' header in tab '{sheet_name}'")
 
 
-def load_vessels() -> pd.DataFrame:
-    """Watch list of vessels with clean IMO/MMSI text columns."""
+def load_vessels(include_capstone: bool = True) -> pd.DataFrame:
+    """Watch list: the Excel Vessels tab + ships tracked in the Capstone Database."""
     df = _read_tab("Vessels", "IMO")
     df = df.rename(columns={
         "Name": "name", "Type": "type", "Flag": "flag", "IMO": "imo", "MMSI": "mmsi",
@@ -49,6 +49,20 @@ def load_vessels() -> pd.DataFrame:
     df["mmsi"] = df["mmsi"].map(clean_id)
     df["name"] = df["name"].astype(str).str.strip()
     df["sanctioned"] = df["sanctioned"].fillna("").astype(str)
+    df["list_source"] = "Tanker watch list (Excel)"
+
+    # Add the ships the team tracks in the Capstone Database (skip ones already listed)
+    if include_capstone:
+        from tracker.capstone_loader import tracked_vessels, load_registry
+        extra = tracked_vessels()
+        if not extra.empty:
+            extra = extra[~extra["imo"].isin(set(df["imo"]) - {""})]
+            df = pd.concat([df, extra], ignore_index=True)
+        reg = load_registry().set_index("imo")
+        for col in ["gross_tonnage", "year_built"]:
+            df[col] = df["imo"].map(reg[col]) if col not in df else df[col].fillna(df["imo"].map(reg[col]))
+    for col in ["call_sign", "notes", "type", "flag"]:
+        df[col] = df[col].fillna("") if col in df else ""
 
     # Data-quality warnings (shown in the app too)
     problems = []

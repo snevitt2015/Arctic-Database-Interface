@@ -89,6 +89,7 @@ export const SHIP_CATEGORIES = [
   { id: "bunker",     label: "Bunkering tanker",     color: "#a78bfa", match: /bunker/i },
   { id: "oil",        label: "Oil / product tanker", color: "#fbbf24", match: /oil|tanker|product/i },
   { id: "container",  label: "Container ship",       color: "#34d399", match: /container/i },
+  { id: "offshore",   label: "Offshore / FSRU",      color: "#2dd4bf", match: /offshore|supply|processing|fsru/i },
   { id: "cargo",      label: "Bulk / general cargo", color: "#a3e635", match: /bulk|cargo|general/i },
   { id: "other",      label: "Other",                color: "#94a3b8", match: /.*/ },
 ];
@@ -112,4 +113,14 @@ export const DATA_LAYERS = [
   { id: "sequence",    label: "Port-to-port sequence (straight lines, not real route)", on: false },
   { id: "predictions", label: "Predicted positions",          on: true },
   { id: "ports",       label: "Ports",                        on: true },
+  { id: "imagery",     label: "Satellite & SAR images (Capstone DB)", on: true },
+];
+
+// ---------------------------------------------------------------------------
+// VECTOR LAYERS - our own GeoJSON files. Each feature needs properties
+// id, name, color (and optionally about). Every feature gets its own on/off switch.
+// ---------------------------------------------------------------------------
+export const VECTOR_LAYERS = [
+  { id: "routes", label: "Arctic sea routes (schematic - not for navigation)", url: "data/sea_routes.geojson",
+    on: ["nsr", "nep", "nwp", "tsr", "rivers", "circle"], dashed: ["tsr", "circle"], thin: ["circle", "rivers"] },
 ];

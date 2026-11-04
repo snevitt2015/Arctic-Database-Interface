@@ -23,8 +23,12 @@ export const VESSEL_SECTIONS = [
   ({ v }) => section("Identity", `<dl>
     ${row("IMO", esc(v.imo) || "<span class='muted'>missing</span>")}
     ${row("MMSI", esc(v.mmsi))}
-    ${row("Flag (Excel)", esc(v.flag))}
+    ${row("Call sign", esc(v.call_sign))}
+    ${row("Flag", esc(v.flag))}
     ${row("Type", esc(v.type))}
+    ${row("Gross tonnage", v.gross_tonnage ? Math.round(+v.gross_tonnage).toLocaleString() : "")}
+    ${row("Built", esc(String(v.year_built || "").replace(".0", "")))}
+    ${row("Listed in", esc(v.list_source))}
     ${row("Sanctioned", v.sanctioned ? `<span class="tag red">${esc(v.sanctioned)}</span>` : "<span class='muted'>not recorded</span>")}
     ${row("Notes", esc(v.notes))}</dl>`),
 
@@ -46,6 +50,28 @@ export const VESSEL_SECTIONS = [
         <span class="chip ${count("ais_off") ? "red" : ""}">${count("ais_off")} AIS off</span>
         <span class="chip ${events.filter((e) => e.jump).length ? "red" : ""}">${events.filter((e) => e.jump).length} impossible moves</span>
       </div>`);
+  },
+
+  // Weekly manual AIS checks from the Capstone Database
+  ({ v, store }) => {
+    const list = store.checks[v.imo]?.filter((c) => c.kind === "check") || [];
+    if (!list.length) return "";
+    const last = list.at(-1);
+    const status = (s) => `<span class="tag ${/live/i.test(s) ? "green" : /very stale|out of range/i.test(s) ? "red" : "amber"}">${esc(s || "?")}</span>`;
+    return section(`Manual AIS checks · ${list.length} (Capstone DB)`, `
+      <div class="check-latest">
+        <div><b>${esc(last.area || "Area unknown")}</b> ${status(last.ais_status)}</div>
+        <div class="muted">Checked ${fmtTime(last.t)} · position ${last.tPos ? fmtTime(last.tPos) : "time unknown"}${last.position_age ? ` (${esc(last.position_age)} old)` : ""}</div>
+        <dl>${row("Nav status", esc(last.nav_status))}
+          ${row("Speed / course", last.speed != null ? `${last.speed} kn · ${last.course ?? "?"}°` : "")}
+          ${row("Draught", last.draught != null ? `${last.draught} m` : "")}
+          ${row("Destination", esc(last.destination))}${row("Last voyage", esc(last.last_voyage))}</dl>
+        ${last.notes ? `<p class="note">${esc(last.notes)}</p>` : ""}
+        ${last.lat ? "" : `<p class="hint">No latitude/longitude in this check, so it isn't plotted. Fill them in Airtable and it will appear on the map and feed the prediction.</p>`}
+      </div>
+      <table class="mini"><thead><tr><th>Checked</th><th>Area</th><th>Status</th><th>kn</th><th>Dest.</th></tr></thead><tbody>${
+        list.slice().reverse().map((c) => `<tr><td>${fmtDay(c.t)}</td><td>${esc(c.area)}</td><td>${esc(c.ais_status)}</td>
+          <td class="num">${c.speed ?? ""}</td><td>${esc(c.destination)}</td></tr>`).join("")}</tbody></table>`);
   },
 
   // Names and radio IDs used over the years (shadow-fleet tactic)
@@ -74,6 +100,34 @@ export const VESSEL_SECTIONS = [
     const max = top[0][1];
     return section("Most visited ports", top.map(([n, c]) =>
       `<div class="bar"><span>${esc(n)}</span><i style="width:${(c / max) * 100}%"></i><b>${c}</b></div>`).join(""));
+  },
+
+  // Satellite & SAR images linked to this ship
+  ({ v, store }) => {
+    const imgs = store.imagery.filter((i) => i.imo && i.imo === v.imo);
+    if (!imgs.length) return "";
+    return section(`Satellite imagery · ${imgs.length}`, imgs.map((i) =>
+      `<div class="alert-item"><b>${esc(i.kind)}</b> · ${esc(i.date)} · ${esc(i.platform)} · ${esc(i.resolution_m)} m
+       <span class="tag ${/^verified/i.test(i.verification) ? "green" : "amber"}">${esc(i.verification || "unverified")}</span><br>
+       <span class="muted">${esc(i.location)}</span> ${i.lat != null ? `<a href="#" data-fly="${i.lon},${i.lat}">show</a>` : ""}</div>`).join(""));
+  },
+
+  // 3D models
+  ({ v, store }) => {
+    const ms = store.models[v.imo] || [];
+    if (!ms.length) return "";
+    return section("3D models", ms.map((m) =>
+      `<div class="alert-item"><b>${esc(m.model_name)}</b> · ${esc(m.source)} ${m.file_format ? `· ${esc(m.file_format)}` : ""}
+       ${m.link ? `<br><a href="${esc(m.link)}" target="_blank" rel="noopener">Open model page ↗</a>` : "<br><span class='muted'>no link yet</span>"}</div>`).join(""));
+  },
+
+  // Web sources the team linked to this ship
+  ({ v, store }) => {
+    const src = (store.checks[v.imo] || []).filter((c) => c.kind === "source_link");
+    const dataLinks = [...new Set((store.checks[v.imo] || []).map((c) => c.data_source).filter((d) => /^https?:/.test(d)))];
+    const links = [...src.map((s) => s.update_id), ...dataLinks];
+    if (!links.length) return "";
+    return section("Sources", links.map((l) => `<div class="src"><a href="${esc(l)}" target="_blank" rel="noopener">${esc(l.replace(/^https?:\/\/(www\.)?/, "").slice(0, 60))}…</a></div>`).join(""));
   },
 
   // Dark periods
@@ -148,4 +202,42 @@ export function eventPopup(e) {
     ${e.note ? `<p class="note">${esc(e.note)}</p>` : ""}
     ${e.jump ? `<p class="warn">⚠ Impossible move: ${Math.round(e.calcSpeed)} kn needed from the previous record</p>` : ""}
   </div>`;
+}
+
+// ---------------------------------------------------------------- registry ship (not on the watch list)
+export function fleetCard(f) {
+  const c = cat(f.cat);
+  return `<header class="card-head">
+      <span class="dot" style="background:${c.color}"></span>
+      <div><h3>${esc(f.name)}</h3><div class="muted">${esc(f.type)}</div></div>
+      <button class="icon-btn" data-close title="Close">×</button>
+    </header>
+    ${section("Registry (Capstone DB)", `<dl>${row("IMO", esc(f.imo))}${row("Flag", esc(f.flag))}
+      ${row("Gross tonnage", f.gt ? f.gt.toLocaleString() : "")}${row("Built", esc(f.year))}</dl>
+      <p class="hint">Not on the watch list, so no tracking data is downloaded. To track it, link an AIS update to it in Airtable
+      (or add it to the Excel Vessels tab) - the next daily update will pull its Global Fishing Watch history.</p>`)}`;
+}
+
+// ---------------------------------------------------------------- satellite / SAR image
+export function imageryCard(i, store) {
+  const ship = i.imo ? store.fleetByImo[i.imo] : null;
+  return `<header class="card-head">
+      <span class="dot port">${i.kind === "SAR" ? "📡" : "🛰"}</span>
+      <div><h3>${esc(i.kind)} image</h3><div class="muted">${esc(i.image_id)}</div></div>
+      <button class="icon-btn" data-close title="Close">×</button>
+    </header>
+    ${section("Acquisition", `<dl>${row("Date", esc(i.date))}${row("Sensor", esc(i.platform))}
+      ${row("Resolution", i.resolution_m ? `${esc(i.resolution_m)} m` : "")}${row("Details", esc(i.detail))}
+      ${row("Location", esc(i.location))}${row("Provider", esc(i.provider))}
+      ${row("Linked ship", ship ? `<a href="#" data-ship="${esc(ship.name)}">${esc(ship.name)}</a>` : "<span class='muted'>none</span>")}
+      ${row("Annotation", esc(i.annotation))}${row("Verification", esc(i.verification))}
+      ${row("Link", i.link ? `<a href="${esc(i.link)}" target="_blank" rel="noopener">open ↗</a>` : "")}</dl>`)}
+    ${i.summary ? section("Analyst summary", `<p class="note">${esc(i.summary)}</p>`) : ""}
+    ${i.notes ? section("Notes", `<p>${esc(i.notes)}</p>`) : ""}`;
+}
+
+// ---------------------------------------------------------------- sea route popup
+export function routePopup(p) {
+  return `<div class="pop"><div class="pop-head"><span class="dot" style="background:${esc(p.color)}"></span><b>${esc(p.name)}</b></div>
+    <p style="margin:6px 0 0">${esc(p.about)}</p><p class="hint">Schematic line for orientation - not for navigation.</p></div>`;
 }

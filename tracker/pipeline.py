@@ -10,6 +10,7 @@ so they always give the same answer.
 import pandas as pd
 
 from tracker import excel_loader, storage, matching, features
+from tracker.schema import standardize
 from tracker.sources import ALL_SOURCES, PRIVATE_SOURCES
 
 
@@ -31,8 +32,13 @@ def build_dataset(include_demo=False):
     """Returns (positions_with_features, vessels, ports)."""
     vessels = excel_loader.load_vessels()
     ports = excel_loader.load_ports()
+    from tracker import capstone_loader
     positions = pd.concat([storage.load_positions(include_demo),
-                           excel_loader.load_operations()], ignore_index=True)
+                           excel_loader.load_operations(),
+                           capstone_loader.ais_checks_as_positions(capstone_loader.load_ais_checks(),
+                                                                   capstone_loader.load_registry())],
+                          ignore_index=True)
+    positions = standardize(positions)   # keep the time column as real dates after combining
     if positions.empty:
         return positions, vessels, ports
     positions = matching.match_to_watchlist(positions, vessels)

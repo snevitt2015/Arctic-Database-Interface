@@ -1,16 +1,27 @@
-name,type,flag,imo,mmsi,sanctioned,notes
-ALEXEY KOSYGIN,LNG Tanker,Russian,9904546,273253,,
-Nova Energy,LNG Tanker,Curacao,9324277,306002000,,
-Arctic Pioneer,LNG Tanker,Russian,9256602,273272340,,
-Arctic Mulan,LNG Tanker,Russian,9864837,273260840,,
-Iris,LNG Tanker,Russian,9953523,273268340,,
-Voskhod,LNG Tanker,Russian,9953511,273265340,,"Departed Tieshan on 1/31, for orders"
-Xiang Rong,Bulk Carrier,Pananma,9309021,352001498,,
-Murmansk,Oil Products Tanker,Russian,9167930,273430430,,
-Kord Atlantic,Oil/Chemical Tanker,Russian,9299161,273454890,,Moored as of 26-3-2 13:10
-Salnyy,Bunkering Tanker,Russian,8725711,273133900,,
-Sever,Bunkering Tanker,Russian,8728749,273137664,,
-Polartank,Chemical Tanker,Russian,6903010,273433560,,
-Pecha,Tanker,Russian,,273541110,,
-Orlets,Oil Tanker,Russian,8727903,273131700,,
-Urartu,Oil Tanker,Russian,9353058,273312850,,Moored in Arkhangelsk
+name,type,flag,imo,mmsi,call_sign,sanctioned,notes,list_source,gross_tonnage,year_built
+ALEXEY KOSYGIN,LNG Tanker,Russian,9904546,273253,UASA7,,,Tanker watch list (Excel),127555.0,2025
+Nova Energy,LNG Tanker,Curacao,9324277,306002000,PJCL17,,,Tanker watch list (Excel),,
+Arctic Pioneer,LNG Tanker,Russian,9256602,273272340,UATD6,,,Tanker watch list (Excel),93786.0,2005
+Arctic Mulan,LNG Tanker,Russian,9864837,273260840,UAFC7,,,Tanker watch list (Excel),54836.0,2024
+Iris,LNG Tanker,Russian,9953523,273268340,UADC7,,,Tanker watch list (Excel),115519.0,2024
+Voskhod,LNG Tanker,Russian,9953511,273265340,UADC5,,"Departed Tieshan on 1/31, for orders",Tanker watch list (Excel),115519.0,2023
+Xiang Rong,Bulk Carrier,Pananma,9309021,352001498,3E2513,,,Tanker watch list (Excel),,
+Murmansk,Oil Products Tanker,Russian,9167930,273430430,UBRR2,,,Tanker watch list (Excel),5698.0,1998
+Kord Atlantic,Oil/Chemical Tanker,Russian,9299161,273454890,UBYS9,,Moored as of 26-3-2 13:10,Tanker watch list (Excel),4730.0,2004
+Salnyy,Bunkering Tanker,Russian,8725711,273133900,,,,Tanker watch list (Excel),204.0,1986
+Sever,Bunkering Tanker,Russian,8728749,273137664,UBME6,,,Tanker watch list (Excel),204.0,1985
+Polartank,Chemical Tanker,Russian,6903010,273433560,UDSE,,,Tanker watch list (Excel),1084.0,1969
+Pecha,Tanker,Russian,,273541110,PECHA,,,Tanker watch list (Excel),,
+Orlets,Oil Tanker,Russian,8727903,273131700,UBXU,,,Tanker watch list (Excel),1896.0,1986
+Urartu,Oil Tanker,Russian,9353058,273312850,UBVA,,Moored in Arkhangelsk,Tanker watch list (Excel),2897.0,2009
+Bratsk,Crude Oil Tanker,Russia,9411020,273250630,UAYA9,,"BIG CHANGE: crossed the Med and transited the Suez Canal southbound today; now in the Red Sea heading S at 8.1 kn, still laden (16.3 m). Destination still 'FOR ORDER' — likely bound for Asian buyers.",Capstone database,83747.0,2009
+Pola Maria,General Cargo Ship,Russia,9897705,273215830,UDHN,,Reversed course: now heading back down the Volga from Volgograd to Astrakhan (last week going up to Ulyanovsk). Out of range ~2 d. Anomaly: MT departure time (10-27) is after the last position (10-26). Draught 3.0→3.6 m (lightly loaded) — possibly another Caspian/Iran run.,Capstone database,6305.0,2020
+Maia-1,General Cargo Ship,Russia,9358010,273291160,UBGW2,,,Capstone database,9611.0,2006
+Arktika,Icebreaker,Russia,9694725,273210920,UCZC,,"ARRIVED: completed the Norway→Baltic transit and is now moored at St Petersburg (arrived 10-28 05:49 local). Draught 9.6→9.4 m. Nuclear icebreaker out of the Arctic, likely for maintenance.",Capstone database,28494.0,2020
+Viktor Chernomyrdin,Icebreaker,Russia,9658630,273428690,UDAH,,"BACK ON AIS after ~4 weeks (last seen 09-30). Moved Kronshtadt → St Petersburg on 10-23, now moored. Destination text back to 'ICEBREAKER CH 77' (was 'ICEBRD'). Page needed 2 reads.",Capstone database,20497.0,2020
+50 Let Pobedy,Icebreaker,Russia,9152959,273316240,UGYU,,"Still moored in Murmansk but AIS out of range since 10-22 (6 d). Anomaly: MT now lists AIS vessel type as 'Beacon, Cardinal S' (was icebreaker/other) — likely a bad AIS static message.",Capstone database,23439.0,2007
+Arctic Vostok,LNG Tanker,Russia,9216298,273278330,UAOD7,,"Moved from off Japan into South-East Asia waters; now nearly stationary (1.5 kn, heading 337 vs course 239 — drifting/loitering). Still laden 11.2 m, no destination. MT now shows departure from Tieshan (CN) 09-12, explaining the Sept dark period.",Capstone database,114354.0,2002
+Marshal Vasilevskiy,Offshore Processing Ship,Russia,9778313,273437230,UBQR5,,No new position since 08-28; now >60 d → 'Very stale'. MT shows Out-of-Range.,Capstone database,118423.0,2018
+SCF Sakhalin,Offshore Supply Ship,Russia,9307724,273318120,UHME,,"Still no position since 09-28, but MT voyage now shows arrival at Sever Bay (Dikson) 10-28 20:24 local and ETA updated to 10-26 — inferred/static data, not a new position fix.",Capstone database,6882.0,2005
+Lady R,Ro-Ro Cargo Ship,Russia,9161003,,,,,Capstone database,7260.0,2004
+Angara,Ro-Ro Cargo Ship,Russia,9179842,,,,,Capstone database,8811.0,1998

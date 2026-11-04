@@ -31,6 +31,21 @@ A full-screen viewer for the Russian Arctic, refreshed every morning by the dail
 * **Alerts**: AIS switched off, impossible moves, encounters and loitering, identity changes - click a row to jump there
 * **Search**: ship name, IMO, MMSI, a former name, or a port
 
+### Team Capstone Database (`data/Arctic_Capstone_Database.xlsx`)
+Export from Airtable and replace this file; the next run picks it up (`tracker/capstone_loader.py`).
+* **Ships** (registry of 4,000+ Russian-flagged ships) → the viewer's **Fleet** tab: counts by type, search by name/IMO/type
+* Ships with a linked **AIS update, 3D model or image** count as *tracked* and are **added to the watch list automatically**,
+  so the daily run downloads their Global Fishing Watch history too
+* **AIS Updates** → "Manual AIS checks" on the ship card. If you fill in **Latitude/Longitude**, the check is also plotted
+  on the map and gives the prediction a real speed and course
+* **SAR / Satellite Optical Imagery** → image markers on the map (position read from the Geolocation / Location text, e.g. `77.5N 68.2E`)
+* **3D Models** → links on the ship card
+
+### Sea routes
+`data/sea_routes.geojson` (made by `python tools/make_sea_routes.py`) draws the Northern Sea Route, North-East and North-West
+Passages, a future transpolar route, Russian river/gulf feeder lines and the Arctic Circle. They are **schematic** - hand-placed
+waypoints through the straits and seas each route uses - for orientation only, not navigation. Edit the waypoints in the script.
+
 ### Adding to the viewer (code in `web/`)
 | To add... | Edit |
 |---|---|

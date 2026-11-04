@@ -65,8 +65,15 @@ def main():
     port_cols = ["name", "lat", "lon", "coords_source", "berths", "depth_capacity", "managing_company",
                  "primary_use", "infrastructure", "notes"]
     ports.reindex(columns=port_cols).to_csv(DATA_DIR / "output_ports.csv", index=False)
-    vessels[["name", "type", "flag", "imo", "mmsi", "sanctioned", "notes"]].to_csv(
-        DATA_DIR / "output_vessels.csv", index=False)
+    vessels.reindex(columns=["name", "type", "flag", "imo", "mmsi", "call_sign", "sanctioned", "notes",
+                             "list_source", "gross_tonnage", "year_built"]).to_csv(DATA_DIR / "output_vessels.csv", index=False)
+    # Capstone Database tables for the web map
+    from tracker import capstone_loader as cap
+    cap.load_registry().to_csv(DATA_DIR / "output_fleet.csv", index=False)
+    cap.load_ais_checks().to_csv(DATA_DIR / "output_ais_checks.csv", index=False)
+    cap.load_imagery().to_csv(DATA_DIR / "output_imagery.csv", index=False)
+    cap.load_models().to_csv(DATA_DIR / "output_models.csv", index=False)
+    cap.load_type_stats().to_csv(DATA_DIR / "output_type_stats.csv", index=False)
     identity_changes(df).to_csv(DATA_DIR / "output_identities.csv", index=False)
     print("Saved data/output_*.csv (features, dark periods, predictions, ports, vessels, identities)")
 

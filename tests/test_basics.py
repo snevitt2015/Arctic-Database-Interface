@@ -85,3 +85,17 @@ def test_far_from_ports_has_no_nearest_port():
     t["lat"] += 8                      # move to ~78N 40E, far from every port
     df = add_features(match_to_watchlist(t, load_vessels()), load_ports())
     assert (df["nearest_port"] == "").all()
+
+
+def test_capstone_position_parsing():
+    from tracker.capstone_loader import parse_latlon
+    assert parse_latlon("Kara Sea, 77.5N 68.2E") == (77.5, 68.2)
+    assert parse_latlon("St Petersburg Terminal Lat 59.87N 30.19W") == (59.87, -30.19)
+    assert parse_latlon("Port 59.87:30.19") == (59.87, 30.19)
+    assert parse_latlon("Barents Sea") is None
+
+
+def test_capstone_ships_join_watch_list():
+    v = load_vessels()
+    assert "9694725" in set(v["imo"])          # icebreaker Arktika from the Capstone Database
+    assert v["imo"].duplicated().sum() == 0 or (v["imo"] == "").sum() >= 1

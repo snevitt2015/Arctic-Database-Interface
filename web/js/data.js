@@ -4,7 +4,7 @@
 
   To add a new data file: load it in loadAll() and attach it to the store.
 */
-import { DATA_DIR, SHIP_CATEGORIES, PORT_RADIUS_KM } from "./config.js";
+import { DATA_DIR, SHIP_CATEGORIES, PORT_RADIUS_KM, VECTOR_LAYERS } from "./config.js";
 
 const parse = (file, optional = false) => new Promise((resolve, reject) =>
   Papa.parse(DATA_DIR + file + "?v=" + Date.now(), {
@@ -26,14 +26,32 @@ export function distanceKm(lat1, lon1, lat2, lon2) {
   return 12742 * Math.asin(Math.sqrt(a));
 }
 
+const loadJson = (url) => fetch(url + "?v=" + Date.now()).then((r) => (r.ok ? r.json() : null)).catch(() => null);
+const groupBy = (rows, key) => rows.reduce((m, r) => ((m[r[key]] ??= []).push(r), m), {});
+
 export async function loadAll() {
-  const [features, vessels, ports, refPorts, dark, preds, ids] = await Promise.all([
+  const [features, vessels, ports, refPorts, dark, preds, ids, fleet, checks, imagery, models, typeStats, ...vectors] = await Promise.all([
     parse("output_features.csv"), parse("output_vessels.csv"), parse("output_ports.csv", true),
     parse("reference_ports.csv", true), parse("output_dark_periods.csv", true),
     parse("output_predictions.csv", true), parse("output_identities.csv", true),
+    // Capstone Database (team Airtable export)
+    parse("output_fleet.csv", true), parse("output_ais_checks.csv", true), parse("output_imagery.csv", true),
+    parse("output_models.csv", true), parse("output_type_stats.csv", true),
+    ...VECTOR_LAYERS.map((v) => loadJson(v.url)),
   ]);
 
   const store = {};
+
+  // Capstone Database
+  store.fleet = fleet.map((f) => ({ ...f, gt: num(f.gross_tonnage), year: num(f.year_built), cat: categoryOf(f.type), tracked: yes(f.tracked) }));
+  store.fleetByImo = Object.fromEntries(store.fleet.map((f) => [f.imo, f]));
+  store.checks = groupBy(checks.map((c) => ({ ...c, t: Date.parse(c.checked) || Date.parse(c.position_time) || 0,
+    tPos: Date.parse(c.position_time) || null, speed: num(c.speed_kn), course: num(c.course), draught: num(c.draught_m) }))
+    .sort((a, b) => a.t - b.t), "imo");
+  store.imagery = imagery.map((i, n) => ({ ...i, n, lat: num(i.lat), lon: num(i.lon) }));
+  store.models = groupBy(models, "imo");
+  store.typeStats = typeStats;
+  store.vectors = Object.fromEntries(VECTOR_LAYERS.map((v, i) => [v.id, vectors[i]]));
 
   store.vessels = vessels.map((v) => ({ ...v, cat: categoryOf(v.type) }));
   const catOf = Object.fromEntries(store.vessels.map((v) => [v.name, v.cat]));
