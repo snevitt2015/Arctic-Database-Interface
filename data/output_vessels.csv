@@ -14,14 +14,14 @@ Polartank,Chemical Tanker,Russian,6903010,273433560,UDSE,,,Tanker watch list (Ex
 Pecha,Tanker,Russian,,273541110,PECHA,,,Tanker watch list (Excel),,
 Orlets,Oil Tanker,Russian,8727903,273131700,UBXU,,,Tanker watch list (Excel),1896.0,1986
 Urartu,Oil Tanker,Russian,9353058,273312850,UBVA,,Moored in Arkhangelsk,Tanker watch list (Excel),2897.0,2009
-Bratsk,Crude Oil Tanker,Russia,9411020,273250630,UAYA9,,"BIG CHANGE: crossed the Med and transited the Suez Canal southbound today; now in the Red Sea heading S at 8.1 kn, still laden (16.3 m). Destination still 'FOR ORDER' — likely bound for Asian buyers.",Capstone database,83747.0,2009
-Pola Maria,General Cargo Ship,Russia,9897705,273215830,UDHN,,Reversed course: now heading back down the Volga from Volgograd to Astrakhan (last week going up to Ulyanovsk). Out of range ~2 d. Anomaly: MT departure time (10-27) is after the last position (10-26). Draught 3.0→3.6 m (lightly loaded) — possibly another Caspian/Iran run.,Capstone database,6305.0,2020
-Maia-1,General Cargo Ship,Russia,9358010,273291160,UBGW2,,,Capstone database,9611.0,2006
-Arktika,Icebreaker,Russia,9694725,273210920,UCZC,,"ARRIVED: completed the Norway→Baltic transit and is now moored at St Petersburg (arrived 10-28 05:49 local). Draught 9.6→9.4 m. Nuclear icebreaker out of the Arctic, likely for maintenance.",Capstone database,28494.0,2020
-Viktor Chernomyrdin,Icebreaker,Russia,9658630,273428690,UDAH,,"BACK ON AIS after ~4 weeks (last seen 09-30). Moved Kronshtadt → St Petersburg on 10-23, now moored. Destination text back to 'ICEBREAKER CH 77' (was 'ICEBRD'). Page needed 2 reads.",Capstone database,20497.0,2020
-50 Let Pobedy,Icebreaker,Russia,9152959,273316240,UGYU,,"Still moored in Murmansk but AIS out of range since 10-22 (6 d). Anomaly: MT now lists AIS vessel type as 'Beacon, Cardinal S' (was icebreaker/other) — likely a bad AIS static message.",Capstone database,23439.0,2007
-Arctic Vostok,LNG Tanker,Russia,9216298,273278330,UAOD7,,"Moved from off Japan into South-East Asia waters; now nearly stationary (1.5 kn, heading 337 vs course 239 — drifting/loitering). Still laden 11.2 m, no destination. MT now shows departure from Tieshan (CN) 09-12, explaining the Sept dark period.",Capstone database,114354.0,2002
-Marshal Vasilevskiy,Offshore Processing Ship,Russia,9778313,273437230,UBQR5,,No new position since 08-28; now >60 d → 'Very stale'. MT shows Out-of-Range.,Capstone database,118423.0,2018
-SCF Sakhalin,Offshore Supply Ship,Russia,9307724,273318120,UHME,,"Still no position since 09-28, but MT voyage now shows arrival at Sever Bay (Dikson) 10-28 20:24 local and ETA updated to 10-26 — inferred/static data, not a new position fix.",Capstone database,6882.0,2005
+Bratsk,Crude Oil Tanker,Russia,9411020,273250630,UAYA9,,"Still in the Barents a week later, now at 2.7 kn (was 12.1). Draught unchanged at 8.8 m — possibly loitering/awaiting orders or STS; worth watching.",Capstone database,83747.0,2009
 Lady R,Ro-Ro Cargo Ship,Russia,9161003,,,,,Capstone database,7260.0,2004
+Viktor Chernomyrdin,Icebreaker,Russia,9658630,273428690,UDAH,,BIG CHANGE: back on AIS after ~3 months dark/laid up. Departed St Petersburg today heading west (292°). Possibly repositioning ahead of the winter ice season.,Capstone database,20497.0,2020
 Angara,Ro-Ro Cargo Ship,Russia,9179842,,,,,Capstone database,8811.0,1998
+Maia-1,General Cargo Ship,Russia,9358010,273291160,UBGW2,,,Capstone database,9611.0,2006
+Marshal Vasilevskiy,Offshore Processing Ship,Russia,9778313,273437230,UBQR5,,No new position since 08-28.,Capstone database,118423.0,2018
+Arctic Vostok,LNG Tanker,Russia,9216298,273278330,UAOD7,,"Last seen 09-24 still heading ENE, slowed to 6.8 kn; draught up 10.0 → 10.5 m. No voyage data shown this week.",Capstone database,114354.0,2002
+SCF Sakhalin,Offshore Supply Ship,Russia,9307724,273318120,UHME,,"Destination changed from Murmansk to Dikson (Kara Sea / NSR entrance). Vessel local time shown as UTC+5, which suggests it was already east of the Barents.",Capstone database,6882.0,2005
+Arktika,Icebreaker,Russia,9694725,273210920,UCZC,,"No change from last week: still anchored off Pevek, 10 days after arrival.",Capstone database,28494.0,2020
+Pola Maria,General Cargo Ship,Russia,9897705,273215830,UDHN,,"Arrived and moored at Anzali, Iran; out of terrestrial AIS range since 09-28.",Capstone database,6305.0,2020
+50 Let Pobedy,Icebreaker,Russia,9152959,273316240,UGYU,,No new position since 08-26. Good candidate for a Global Fishing Watch check.,Capstone database,23439.0,2007
