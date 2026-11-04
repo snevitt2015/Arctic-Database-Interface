@@ -112,7 +112,14 @@ def dark_periods(df: pd.DataFrame) -> pd.DataFrame:
         g = g.reset_index(drop=True)
         for i, r in g[g["dark_gap"]].iterrows():
             if r["event_type"] == "ais_off":
-                nxt = g.iloc[i + 1] if i + 1 < len(g) else None
+                # pair with the matching "AIS back on" record (same GFW event id), not just the next record
+                later = g.iloc[i + 1:]
+                eid = str(r.get("event_id", "") or "")
+                match = later[later["event_type"] == "ais_on"]
+                if eid:
+                    same = match[match.get("event_id", "").astype(str) == eid + ":on"] if "event_id" in g else match.iloc[0:0]
+                    match = same if not same.empty else match
+                nxt = match.iloc[0] if not match.empty else (later.iloc[0] if not later.empty else None)
                 start, end = r, nxt
             else:
                 start, end = g.iloc[i - 1], r

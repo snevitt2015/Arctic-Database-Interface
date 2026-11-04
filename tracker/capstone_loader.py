@@ -24,8 +24,23 @@ from config import CAPSTONE_FILE
 from tracker.schema import clean_id, standardize, empty_table
 
 
+_source_note = {}
+
+
 def _tab(start: str) -> pd.DataFrame:
-    """Read the tab whose name starts with `start` (empty table if missing)."""
+    """Read a table: live from Airtable if a token is set, otherwise the Excel export tab
+    whose name starts with `start` (empty table if missing)."""
+    from tracker import airtable
+    if airtable.is_configured():
+        key = next((k for k in airtable.config.AIRTABLE_TABLES if k.lower().startswith(start.lower())), None)
+        if key:
+            try:
+                df = airtable.load_table(key)
+                _source_note[start] = "Airtable (live)"
+                return df.dropna(how="all")
+            except Exception as e:  # network/permission problem -> fall back to the export
+                print(f"Airtable: {key} unavailable ({e}); using the Excel export instead")
+    _source_note[start] = "Excel export"
     if not CAPSTONE_FILE.exists():
         return pd.DataFrame()
     book = pd.ExcelFile(CAPSTONE_FILE)

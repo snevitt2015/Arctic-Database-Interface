@@ -44,6 +44,10 @@ def save_positions(new_rows: pd.DataFrame, private: bool = False) -> int:
     combined = pd.concat([old, new_rows], ignore_index=True)
     combined["lat"] = combined["lat"].round(5)
     combined["lon"] = combined["lon"].round(5)
+    # A re-downloaded GFW event replaces the older copy of itself (same event id)...
+    has_id = combined["event_id"] != ""
+    combined = pd.concat([combined[~has_id], combined[has_id].drop_duplicates("event_id", keep="last")])
+    # ...and anything else identical is dropped
     combined = combined.drop_duplicates(subset=DEDUPE_KEYS).sort_values("timestamp")
     path.parent.mkdir(parents=True, exist_ok=True)
     combined.to_csv(path, index=False)

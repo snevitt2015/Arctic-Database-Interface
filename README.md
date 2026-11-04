@@ -114,6 +114,19 @@ All data goes into one growing file, `data/positions.csv`, so history is never l
 
 ---
 
+## How the tracking algorithm stays reliable
+
+| Piece | File | What it does |
+|---|---|---|
+| **Position at any moment** | `tracker/interpolate.py` | `position_at(track, time)` gives an exact, interpolated or projected position, or the last known one, each with an uncertainty in km. `candidates_near(df, lat, lon, time)` lists which watch-list ships could be at a spot at that moment. This is what an image detection gets matched against. |
+| **Sun position** | `tracker/sun.py` | Sun elevation and azimuth at a time and place, for comparing satellite images to the 3D-print photo sessions |
+| **Only new data** | `pipeline.update_data()` | Daily runs download each ship's events from its last saved date minus 30 days. New ships get their full history. Run `python run_update.py --full` to re-download everything. Re-downloaded GFW events replace their old copy (matched by event id). |
+| **Data checks** | `tracker/validation.py` | Every run checks IMO check digits, MMSIs, coordinates against named places (catches E/W mix-ups), date-only times, image-name vs. date mismatches, missing coordinates and duplicates. Results go to `data/output_data_checks.csv` and the viewer (Alerts → Data checks). |
+| **Live Airtable** | `tracker/airtable.py` | With an `AIRTABLE_TOKEN` secret, every run reads the Capstone base directly instead of the Excel export, and `upsert()` can write results back. |
+
+**Fields to add in Airtable** (ship dimensions, exact UTC times, SAR scenes, detections and matches, 3D-print capture
+sessions): see [`docs/airtable_fields.md`](docs/airtable_fields.md).
+
 ## How the algorithm works
 
 ```

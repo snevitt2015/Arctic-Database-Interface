@@ -22,11 +22,23 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--no-fetch", action="store_true", help="skip downloading")
     parser.add_argument("--demo", action="store_true", help="include synthetic demo data")
+    parser.add_argument("--full", action="store_true", help="re-download every ship's full history (slow)")
     args = parser.parse_args()
+
+    # Data checks first, so problems are visible even if nothing else runs
+    from tracker.validation import run_all_checks
+    checks = run_all_checks()
+    checks.to_csv(DATA_DIR / "output_data_checks.csv", index=False)
+    counts = checks["severity"].value_counts()
+    print(f"Data checks: {counts.get('error', 0)} errors, {counts.get('warning', 0)} warnings "
+          f"(see data/output_data_checks.csv)")
+    for _, c in checks[checks["severity"] == "error"].iterrows():
+        print(f"  ERROR {c['table']} / {c['record']} / {c['field']}: {c['problem']}")
+    print()
 
     if not args.no_fetch:
         print("Downloading from OSINT sources...")
-        new = update_data()
+        new = update_data(full=args.full)
         print(f"{new} new rows saved.\n")
 
     df, vessels, ports = build_dataset(include_demo=args.demo)

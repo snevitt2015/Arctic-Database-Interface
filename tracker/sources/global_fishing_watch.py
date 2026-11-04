@@ -108,7 +108,7 @@ def _events_to_rows(events: list, event_type: str, vessel) -> list:
         base = {
             "imo": vessel["imo"], "mmsi": (ev.get("vessel") or {}).get("ssvid") or vessel["mmsi"],
             "name": (ev.get("vessel") or {}).get("name") or vessel["name"],
-            "source": "GFW", "event_type": event_type,
+            "source": "GFW", "event_type": event_type, "event_id": ev.get("id") or "",
         }
         pos = ev.get("position") or {}
 
@@ -122,7 +122,7 @@ def _events_to_rows(events: list, event_type: str, vessel) -> list:
             rows.append({**base, "timestamp": ev.get("start"), "lat": off.get("lat"),
                          "lon": off.get("lon"), "note": note})
             if on.get("lat") is not None:
-                rows.append({**base, "event_type": "ais_on", "timestamp": ev.get("end"),
+                rows.append({**base, "event_type": "ais_on", "event_id": (ev.get("id") or "") + ":on", "timestamp": ev.get("end"),
                              "lat": on.get("lat"), "lon": on.get("lon"), "note": note})
         else:
             note = ""
@@ -139,13 +139,18 @@ def _events_to_rows(events: list, event_type: str, vessel) -> list:
 
 
 def fetch(vessels: pd.DataFrame, start_date: str = HISTORY_START_DATE,
-          end_date: str = None, log=print) -> pd.DataFrame:
-    """Download all events for every vessel in the watch list."""
+          end_date: str = None, log=print, since: dict = None) -> pd.DataFrame:
+    """Download events for every vessel in the watch list.
+
+    `since` = {IMO (or MMSI if no IMO): "YYYY-MM-DD"} - download only from that date for
+    ships we already have (see pipeline.update_data). Ships not in `since` get their
+    full history from `start_date`."""
+    since = since or {}
     if not GFW_API_TOKEN:
         log("GFW: no GFW_API_TOKEN set - skipping. (See README, step 3.)")
         return empty_table()
 
-    end_date = end_date or pd.Timestamp.utcnow().strftime("%Y-%m-%d")
+    end_date = end_date or pd.Timestamp.now(tz="UTC").strftime("%Y-%m-%d")
     rows = []
     for _, vessel in vessels.iterrows():
         try:
@@ -157,10 +162,13 @@ def fetch(vessels: pd.DataFrame, start_date: str = HISTORY_START_DATE,
             log(f"GFW: {vessel['name']} not found")
             continue
 
+        vessel_start = since.get(vessel["imo"] or vessel["mmsi"], start_date)
+        if vessel_start != start_date:
+            log(f"GFW: {vessel['name']} - downloading from {vessel_start} (already have older data)")
         for event_type, dataset in EVENT_DATASETS.items():
             offset = 0
             while True:                      # page through all results
-                params = {"datasets[0]": dataset, "start-date": start_date,
+                params = {"datasets[0]": dataset, "start-date": vessel_start,
                           "end-date": end_date, "limit": 100, "offset": offset}
                 for i, gfw_id in enumerate(ids):
                     params[f"vessels[{i}]"] = gfw_id

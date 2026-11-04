@@ -185,6 +185,12 @@ export const ALERT_TABS = {
     cols: [["Ship", (r) => r.vessel], ["Time", (r) => fmtTime(r.t)], ["Type", (r) => EVENT_TYPES[r.ev].label],
            ["Where", (r) => `${r.lat.toFixed(2)}, ${r.lon.toFixed(2)}`], ["Note", (r) => r.note]],
   },
+  checks: {
+    label: "Data checks",
+    rows: (store) => store.dataChecks || [],
+    cols: [["Severity", (r) => r.severity], ["Table", (r) => r.table], ["Record", (r) => r.record],
+           ["Field", (r) => r.field], ["Problem", (r) => r.problem], ["Value", (r) => r.value]],
+  },
   ids: {
     label: "Identity changes",
     rows: (store, state) => Object.entries(store.identities).filter(([v]) => state.vessels.has(v)).map(([vessel, i]) => ({ vessel, ...i })),
@@ -196,6 +202,7 @@ export function renderAlerts(store, state, visible) {
   const tabs = Object.entries(ALERT_TABS).map(([k, t]) => ({ k, t, rows: t.rows(store, state, visible) }));
   // the badge counts warning signs only: AIS off, impossible moves and encounters (not routine loitering)
   $("#alert-count").textContent = tabs.reduce((n, x) => n + (x.k === "dark" || x.k === "jumps" ? x.rows.length
+    : x.k === "checks" ? x.rows.filter((r) => r.severity === "error").length
     : x.k === "meet" ? x.rows.filter((r) => r.ev === "encounter").length : 0), 0);
   $("#alert-tabs").innerHTML = tabs.map(({ k, t, rows }) =>
     `<button data-alert-tab="${k}" class="${state.alertTab === k ? "on" : ""}">${esc(t.label)} <span class="count">${rows.length}</span></button>`).join("");

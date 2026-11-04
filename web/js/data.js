@@ -30,13 +30,13 @@ const loadJson = (url) => fetch(url + "?v=" + Date.now()).then((r) => (r.ok ? r.
 const groupBy = (rows, key) => rows.reduce((m, r) => ((m[r[key]] ??= []).push(r), m), {});
 
 export async function loadAll() {
-  const [features, vessels, ports, refPorts, dark, preds, ids, fleet, checks, imagery, models, typeStats, ...vectors] = await Promise.all([
+  const [features, vessels, ports, refPorts, dark, preds, ids, fleet, checks, imagery, models, typeStats, dataChecks, ...vectors] = await Promise.all([
     parse("output_features.csv"), parse("output_vessels.csv"), parse("output_ports.csv", true),
     parse("reference_ports.csv", true), parse("output_dark_periods.csv", true),
     parse("output_predictions.csv", true), parse("output_identities.csv", true),
     // Capstone Database (team Airtable export)
     parse("output_fleet.csv", true), parse("output_ais_checks.csv", true), parse("output_imagery.csv", true),
-    parse("output_models.csv", true), parse("output_type_stats.csv", true),
+    parse("output_models.csv", true), parse("output_type_stats.csv", true), parse("output_data_checks.csv", true),
     ...VECTOR_LAYERS.map((v) => loadJson(v.url)),
   ]);
 
@@ -51,6 +51,7 @@ export async function loadAll() {
   store.imagery = imagery.map((i, n) => ({ ...i, n, lat: num(i.lat), lon: num(i.lon) }));
   store.models = groupBy(models, "imo");
   store.typeStats = typeStats;
+  store.dataChecks = dataChecks;
   store.vectors = Object.fromEntries(VECTOR_LAYERS.map((v, i) => [v.id, vectors[i]]));
 
   store.vessels = vessels.map((v) => ({ ...v, cat: categoryOf(v.type) }));

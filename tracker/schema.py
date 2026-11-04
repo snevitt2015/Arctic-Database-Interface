@@ -25,6 +25,7 @@ COLUMNS = [
     "source",      # where it came from, e.g. "GFW", "MarineTraffic"
     "event_type",  # "position", "port_visit", "ais_off", "ais_on", "encounter", "loitering"
     "note",        # free text
+    "event_id",    # the source's own ID for this record (GFW event id) - lets updates replace old copies
 ]
 
 
@@ -55,7 +56,7 @@ def standardize(df: pd.DataFrame) -> pd.DataFrame:
         df[col] = pd.to_numeric(df[col], errors="coerce")
     for col in ["imo", "mmsi"]:
         df[col] = df[col].map(clean_id)
-    for col in ["name", "source", "event_type", "note"]:
+    for col in ["name", "source", "event_type", "note", "event_id"]:
         df[col] = df[col].fillna("").astype(str)
     df.loc[df["event_type"] == "", "event_type"] = "position"
     # A position without time or coordinates is useless

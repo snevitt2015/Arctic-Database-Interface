@@ -99,3 +99,104 @@ def test_capstone_ships_join_watch_list():
     v = load_vessels()
     assert "9694725" in set(v["imo"])          # icebreaker Arktika from the Capstone Database
     assert v["imo"].duplicated().sum() == 0 or (v["imo"] == "").sum() >= 1
+
+
+# ---------------------------------------------------------------- position at a moment
+def test_position_at_interpolates_between_fixes():
+    from tracker.interpolate import position_at
+    t = _track()                                   # fixes every 3 h heading east
+    mid = t["timestamp"].iloc[1] + pd.Timedelta(hours=1.5)
+    est = position_at(t, mid)
+    assert est["method"] == "interpolated"
+    a, b = t.iloc[1], t.iloc[2]
+    assert abs(distance_km(a["lat"], a["lon"], est["lat"], est["lon"]) -
+               distance_km(est["lat"], est["lon"], b["lat"], b["lon"])) < 0.5    # halfway
+    assert est["uncertainty_km"] > 0
+
+
+def test_position_at_exact_projected_and_last_known():
+    from tracker.interpolate import position_at
+    t = _track()
+    assert position_at(t, t["timestamp"].iloc[0] + pd.Timedelta(minutes=5))["method"] == "exact"
+    after = t["timestamp"].iloc[-1]
+    p2 = position_at(t, after + pd.Timedelta(hours=2))
+    assert p2["method"] == "projected" and p2["lon"] > t["lon"].iloc[-1]       # kept going east
+    old = position_at(t, after + pd.Timedelta(days=3))
+    assert old["method"] == "last_known" and old["uncertainty_km"] > 1000
+    assert position_at(t, t["timestamp"].iloc[0] - pd.Timedelta(days=1))["method"] == "none"
+
+
+def test_candidates_near_finds_the_right_ship():
+    from tracker.interpolate import candidates_near
+    df = add_features(match_to_watchlist(_track(), load_vessels()), load_ports())
+    when = df["timestamp"].iloc[2]
+    c = candidates_near(df, df["lat"].iloc[2], df["lon"].iloc[2], when, max_km=5)
+    assert list(c["vessel"]) == ["ALEXEY KOSYGIN"]
+
+
+# ---------------------------------------------------------------- sun
+def test_sun_elevation_murmansk_midsummer_and_polar_night():
+    from tracker.sun import sun_position, max_sun_elevation, nearest_step
+    assert abs(sun_position("2026-06-21 09:20", 68.97, 33.08)["sun_elevation"] - 44.4) < 1
+    assert sun_position("2026-12-21 09:20", 68.97, 33.08)["sun_elevation"] < 0
+    assert max_sun_elevation(70) == 43.4
+    assert nearest_step(37.2) == 35 and nearest_step(12) is None
+
+
+# ---------------------------------------------------------------- data checks
+def test_imo_check_digit():
+    from tracker.validation import imo_is_valid, mmsi_problem
+    assert imo_is_valid("9694725") and imo_is_valid(9904546.0)
+    assert not imo_is_valid("9694726") and not imo_is_valid("123")
+    assert mmsi_problem("273253") and not mmsi_problem("273210920")
+
+
+def test_imagery_hemisphere_mistake_is_caught():
+    from tracker.validation import check_imagery
+    img = pd.DataFrame([{"kind": "Optical", "image_id": "Test St Petersburg Port", "location": "St Petersburg 59.87N 30.19W",
+                         "lat": 59.87, "lon": -30.19, "date": "2026-09-22 10:31:00", "imo": "9658630"}])
+    issues = check_imagery(img, load_ports())
+    assert any("E/W" in i["problem"] for i in issues)
+
+
+# ---------------------------------------------------------------- incremental download
+def test_gfw_since_starts_after_saved_data(tmp_path, monkeypatch):
+    import config
+    from tracker import storage, pipeline
+    monkeypatch.setattr(config, "POSITIONS_FILE", tmp_path / "positions.csv")
+    monkeypatch.setattr(storage, "POSITIONS_FILE", tmp_path / "positions.csv")
+    monkeypatch.setattr(storage, "PRIVATE_POSITIONS_FILE", tmp_path / "private.csv")
+    rows = _track(); rows["source"] = "GFW"
+    storage.save_positions(rows)
+    since = pipeline.gfw_since(overlap_days=10)
+    last = rows["timestamp"].max() - pd.Timedelta(days=10)
+    assert since == {"9904546": last.strftime("%Y-%m-%d")}
+
+
+def test_reloaded_gfw_event_replaces_old_copy(tmp_path, monkeypatch):
+    from tracker import storage
+    monkeypatch.setattr(storage, "POSITIONS_FILE", tmp_path / "positions.csv")
+    monkeypatch.setattr(storage, "PRIVATE_POSITIONS_FILE", tmp_path / "private.csv")
+    r = _track().head(1); r["source"] = "GFW"; r["event_id"] = "abc"
+    storage.save_positions(r)
+    r2 = r.copy(); r2["lat"] = r2["lat"] + 0.01            # GFW revised the event's position
+    storage.save_positions(r2)
+    saved = storage.load_positions()
+    assert len(saved) == 1 and abs(saved["lat"].iloc[0] - r2["lat"].iloc[0]) < 1e-6
+
+
+# ---------------------------------------------------------------- Airtable (no network: fake responses)
+def test_airtable_records_look_like_excel_export(monkeypatch):
+    import config
+    from tracker import airtable
+    monkeypatch.setattr(config, "AIRTABLE_TOKEN", "test")
+    airtable._cache.clear()
+    fake = {
+        "Ships": [{"id": "recShip1", "fields": {"IMO number": 9694725, "Ship name": "ARKTIKA", "Vessel type": "Icebreaker"}}],
+        "AIS Updates": [{"id": "recU1", "fields": {"Update ID": "ARKTIKA – 2026-10-28", "Ship": ["recShip1"],
+                                                     "Speed (kn)": 0.2, "Latitude": 59.9}}],
+    }
+    monkeypatch.setattr(airtable, "fetch_records", lambda table: fake.get(table, []))
+    df = airtable.load_table("AIS Updates")
+    assert df.loc[0, "Ship"] == "9694725"            # linked record resolved to the ship's IMO
+    assert df.loc[0, "Latitude"] == 59.9

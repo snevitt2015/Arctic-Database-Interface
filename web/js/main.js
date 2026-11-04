@@ -116,7 +116,7 @@ document.addEventListener("click", (ev) => {
   if (d.alertRow !== undefined) {
     const r = alertRows[+d.alertRow];
     if (r.lat != null) { M.flyTo(r.lon, r.lat, 7); if (r.id != null) M.showPopup([r.lon, r.lat], eventPopup(r)); }
-    else selectShip(r.vessel);
+    else if (r.vessel) selectShip(r.vessel);   // data-check rows have no ship or position: nothing to jump to
     return;
   }
   if (d.basemap) { state.basemap = d.basemap; M.setBasemap(d.basemap); return UI.renderLayers(state); }

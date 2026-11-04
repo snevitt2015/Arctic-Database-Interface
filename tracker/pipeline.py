@@ -14,13 +14,30 @@ from tracker.schema import standardize
 from tracker.sources import ALL_SOURCES, PRIVATE_SOURCES
 
 
-def update_data(source_names=None, log=print) -> int:
+def gfw_since(overlap_days=None) -> dict:
+    """For each ship we already have GFW data for: the date to start the next download from."""
+    import config
+    overlap = config.GFW_OVERLAP_DAYS if overlap_days is None else overlap_days
+    have = storage.load_positions()
+    have = have[have["source"] == "GFW"]
+    if have.empty:
+        return {}
+    have = have.assign(key=have["imo"].where(have["imo"] != "", have["mmsi"]))
+    last = have.groupby("key")["timestamp"].max()
+    return {k: (t - pd.Timedelta(days=overlap)).strftime("%Y-%m-%d") for k, t in last.items() if k}
+
+
+def update_data(source_names=None, log=print, full=False) -> int:
+    """Download from every source. Normally GFW only fetches new events (fast);
+    full=True re-downloads every ship's whole history since 2012."""
     vessels = excel_loader.load_vessels()
+    since = {} if full else gfw_since()
     total_new = 0
     for name, fetch in ALL_SOURCES.items():
         if source_names and name not in source_names:
             continue
-        rows = fetch(vessels, log=log)
+        extra = {"since": since} if name == "Global Fishing Watch" else {}
+        rows = fetch(vessels, log=log, **extra)
         if not rows.empty:
             new = storage.save_positions(rows, private=name in PRIVATE_SOURCES)
             log(f"{name}: {len(rows)} rows downloaded, {new} new")

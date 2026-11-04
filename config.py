@@ -30,9 +30,29 @@ IMPORTS_DIR = DATA_DIR / "imports"                  # drop MarineTraffic / Tanke
 GFW_API_TOKEN = os.getenv("GFW_API_TOKEN", "")
 MARINETRAFFIC_API_KEY = os.getenv("MARINETRAFFIC_API_KEY", "")
 
+# ---------- Airtable (team Capstone Database) ----------
+# With a token, every run reads the live base; without one, data/Arctic_Capstone_Database.xlsx is used.
+AIRTABLE_TOKEN = os.getenv("AIRTABLE_TOKEN", "")
+AIRTABLE_BASE_ID = os.getenv("AIRTABLE_BASE_ID", "appN11VIxqyFzwdBO")
+# key used in the code -> table name in Airtable + its primary (first) field.
+# If you rename a table or its first field in Airtable, change it here too.
+AIRTABLE_TABLES = {
+    "Ships":                     {"table": "Ships",                     "primary": "IMO number"},
+    "AIS Updates":               {"table": "AIS Updates",               "primary": "Update ID"},
+    "3D Models":                 {"table": "3D Models",                 "primary": "Model name"},
+    "SAR Imagery":               {"table": "SAR Imagery",               "primary": "Image name"},
+    "Satellite Optical Imagery": {"table": "Satellite Optical Imagery", "primary": "Image ID"},
+    "Ship Type Statistics":      {"table": "Ship Type Statistics",      "primary": "Number in Service"},
+    "Capture Sessions":          {"table": "Capture Sessions",          "primary": "Column1"},
+    "Optical Images":            {"table": "Optical Images",            "primary": "Image Name"},
+}
+
 # ---------- History ----------
 # "All dates": Global Fishing Watch AIS data starts in 2012.
 HISTORY_START_DATE = "2012-01-01"
+# Daily runs only download events newer than what we already have, minus this overlap
+# (GFW can revise recent events for a few weeks; the overlap picks those revisions up).
+GFW_OVERLAP_DAYS = 30
 
 # ---------- Algorithm settings ----------
 DARK_GAP_HOURS = 6.0          # AIS silent longer than this -> flagged as a possible "dark" period
