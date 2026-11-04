@@ -1,6 +1,5 @@
 severity,table,record,field,problem,value
 error,Watch list,ALEXEY KOSYGIN,MMSI,MMSI should be 9 digits (has 6),273253
-error,Ships (registry),Name of ship,IMO number,IMO check digit is wrong,IMO number
 error,Optical imagery,Viktor Chernomydrin_St Petersburg Port 59.87:30.19,Location,"Position is 3,255 km from St Petersburg, which the text names - check the E/W or N/S letter","59.87, -30.19"
 warning,Watch list,Pecha,IMO,"No IMO - can only be matched by MMSI or name, which ships change",
 warning,Ships (registry),all ships,Length overall,Field missing - needed to compare measured ship size in images against the real ship,
@@ -15,6 +14,7 @@ warning,SAR imagery,RU-Arctic-003_RS2_20260905,Date,Image name says 2026-09-05 b
 warning,Optical imagery,Viktor Chernomydrin_St Petersburg Port 59.87:30.19,Date,"Date only, no time - a ship moves hundreds of km in a day; record UTC time to the second",2026-09-22
 info,Watch list,Lady R,MMSI,No MMSI recorded,
 info,Watch list,Angara,MMSI,No MMSI recorded,
+info,Ships (registry),Name of ship,IMO number,Skipped - the IMO field doesn't hold a 7-digit number (looks like a header row),IMO number
 info,AIS Updates,17 of 17 checks,Latitude / Longitude,"Area name only - placed at the area's centre with its radius as the error. Fine for 'roughly where', too coarse to match a single ship in an image",
 info,AIS Updates,9179842,Update ID,"Row holds only a web link, not an AIS check",https://www.nknews.org/pro/russian-navy-escorts-ships-known-
 info,AIS Updates,9161003,Update ID,"Row holds only a web link, not an AIS check",https://airtable.com/appN11VIxqyFzwdBO/tblJ1AuWpChNXqpuI/viw

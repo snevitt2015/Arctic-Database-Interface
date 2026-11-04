@@ -3529,7 +3529,6 @@ imo,name,gross_tonnage,type,year_built,flag,tracked
 9349289,LADY D,9611,General Cargo Ship,2006,Russia,False
 4625690,NIKOLAY STARSHINOV,3040,General Cargo Ship,1980,Russia,False
 8858544,AMAYAN,683,Fish Carrier,1991,Russia,False
-IMO number,Name of ship,0,Type of ship,0,Flag,False
 8926729,SKIF,187,Tug,1970,Russia,False
 8513039,DANIDIN,5598,Refrigerated Cargo Ship,1986,Russia,False
 9398838,RUBY,286,Tug,2006,Russia,False
