@@ -8,7 +8,7 @@ import { BASEMAPS, OVERLAYS, DATA_LAYERS, EVENT_TYPES, DEFAULT_BASEMAP, VECTOR_L
 import { loadAll } from "./data.js";
 import * as M from "./map.js";
 import * as UI from "./ui.js";
-import { vesselCard, portCard, eventPopup, fleetCard, imageryCard, routePopup } from "./cards.js";
+import { vesselCard, portCard, eventPopup, fleetCard, imageryCard, routePopup, cueCard, detectionPopup } from "./cards.js";
 
 const $ = (s) => document.querySelector(s);
 const DAY = 864e5;
@@ -18,7 +18,7 @@ const state = {
   windowDays: 90, start: 0, end: 0, vessels: new Set(), selected: null, search: "",
   eventTypes: new Set(Object.entries(EVENT_TYPES).filter(([, v]) => v.on).map(([k]) => k)),
   dataLayers: new Set(DATA_LAYERS.filter((d) => d.on).map((d) => d.id)),
-  basemap: DEFAULT_BASEMAP, projection: "globe", leftTab: "vessels", alertTab: "dark", alertsOpen: false,
+  basemap: DEFAULT_BASEMAP, projection: "globe", leftTab: "vessels", alertTab: "pings", alertsOpen: false, selectedCue: null,
   overlays: Object.fromEntries(OVERLAYS.map((o) => [o.id, { on: o.on, opacity: o.opacity }])),
   overlayDate: today, today,
   fleetType: "", showAllTypes: false,
@@ -41,6 +41,7 @@ function update() {
   }
   for (const v in latest) if (latestFine[v]) latest[v] = latestFine[v];
   M.applyFilter({ ...state });
+  M.setCueVisibility(state.dataLayers.has("cues"), state.selectedCue);
   M.setLatestShips(Object.values(latest), state.selected);
   UI.renderStats(store, state, visible);
   if (state.leftTab === "vessels") UI.renderVessels(store, state, latest);
@@ -57,10 +58,25 @@ function setWindow(days, end = state.end) {
 
 // ---------------------------------------------------------------- selection & cards
 function openDetail(html) { $("#detail").innerHTML = html; $("#detail").classList.add("open"); }
-function closeDetail() { $("#detail").classList.remove("open"); state.selected = null; update(); }
+function closeDetail() { $("#detail").classList.remove("open"); state.selected = null; state.selectedCue = null; M.showScenes([]); update(); }
+
+function selectCue(id, zoom = true) {
+  const c = store.cues.find((x) => x.cue_id === id);
+  if (!c) return;
+  state.selected = null; state.selectedCue = id;
+  openDetail(cueCard(c, store));
+  M.showScenes(c.scenes);
+  // show the ping's time window on the timeline
+  setWindow(Math.max(7, Math.ceil((c.tEnd - c.t) / DAY) + 4), Math.min(store.maxT, c.tEnd + 2 * DAY));
+  if (zoom) zoomCue(c);
+}
+function zoomCue(c) {
+  const d = c.radius / 111;
+  M.fitPoints([[c.lon - d / Math.cos(c.lat * Math.PI / 180), c.lat - d], [c.lon + d / Math.cos(c.lat * Math.PI / 180), c.lat + d]], 9);
+}
 
 function selectShip(name, zoom = true) {
-  state.selected = name;
+  state.selected = name; state.selectedCue = null; M.showScenes([]);
   openDetail(vesselCard(store, name));
   update();
   if (zoom) zoomShip(name);
@@ -84,6 +100,12 @@ M.on("shipClick", (name) => selectShip(name, false));
 M.on("portClick", (p) => selectPort(p));
 M.on("imageryClick", (img) => { state.selected = null; openDetail(imageryCard(img, store)); update(); M.flyTo(img.lon, img.lat, 6); });
 M.on("vectorClick", (props, lngLat) => M.showPopup(lngLat, routePopup(props)));
+M.on("cueClick", (id) => selectCue(id, false));
+M.on("detectionClick", (id, n, lngLat) => {
+  const c = store.cues.find((x) => x.cue_id === id);
+  const d = c?.detections.find((x) => +x.detection === +n);
+  if (d) M.showPopup(lngLat, detectionPopup(c, d));
+});
 
 function openFleetShip(imo) {
   const onList = store.vessels.find((v) => v.imo === imo);
@@ -97,9 +119,11 @@ function openFleetShip(imo) {
 document.addEventListener("click", (ev) => {
   const t = ev.target.closest("[data-ship],[data-toggle],[data-cat],[data-port],[data-close],[data-zoom-ship],[data-only-ship]," +
     "[data-zoom-port],[data-fly],[data-window],[data-left-tab],[data-alert-tab],[data-alert-row],[data-basemap],[data-proj],#alerts-toggle,#play,#home," +
-    "[data-fleet],[data-fleet-type],[data-more-types]");
+    "[data-fleet],[data-fleet-type],[data-more-types],[data-zoom-cue],#pings-stat");
   if (!t) return;
   const d = t.dataset;
+  if (d.zoomCue) return zoomCue(store.cues.find((x) => x.cue_id === d.zoomCue));
+  if (t.id === "pings-stat") { state.alertTab = "pings"; state.alertsOpen = true; document.body.classList.add("alerts-open"); return update(); }
   if (d.fleet) return openFleetShip(d.fleet);
   if (d.fleetType !== undefined) { ev.preventDefault(); state.fleetType = state.fleetType === d.fleetType ? "" : d.fleetType; return UI.renderFleet(store, state); }
   if (d.moreTypes !== undefined) { ev.preventDefault(); state.showAllTypes = !state.showAllTypes; return UI.renderFleet(store, state); }
@@ -121,6 +145,7 @@ document.addEventListener("click", (ev) => {
   if (d.alertTab) { state.alertTab = d.alertTab; return update(); }
   if (d.alertRow !== undefined) {
     const r = alertRows[+d.alertRow];
+    if (r.cue_id && r.scenes) return selectCue(r.cue_id);
     if (r.lat != null) { M.flyTo(r.lon, r.lat, 7); if (r.id != null) M.showPopup([r.lon, r.lat], eventPopup(r)); }
     else if (r.vessel) selectShip(r.vessel);   // data-check rows have no ship or position: nothing to jump to
     return;
@@ -213,6 +238,7 @@ window.addEventListener("resize", () => store && UI.renderTimeline(store, state)
     M.setVectors(store.vectors);
     VECTOR_LAYERS.forEach((v) => M.setVectorVisible(v.id, state.vectorsOn[v.id]));
     M.setImagery(store.imagery);
+    M.setCues(store.cues);
     UI.renderLegend();
     showLeftTab("vessels");
     setWindow(90, store.maxT);

@@ -31,6 +31,7 @@ _force_excel = False   # set after a problem with live Airtable data, so the res
 # EVERY record (e.g. Latitude today), so missing ones are added back as empty columns.
 EXPECTED_FIELDS = {
     "Ships": ["IMO number", "Ship name", "Gross tonnage", "Vessel type", "Year built", "Flag / registry",
+              "Length overall (m)", "Beam (m)", "Air draft (m)",
               "Linked 3D Models", "Linked SAR Imagery", "Linked Satellite Optical Imagery", "AIS Updates"],
     "AIS Updates": ["Update ID", "Ship", "MMSI", "Call sign", "Last reported area", "Last position time (UTC)",
                     "Position age at check", "AIS status", "Nav status", "Speed (kn)", "Course (deg)", "Draught (m)",
@@ -142,6 +143,10 @@ def load_registry(include_invalid: bool = False) -> pd.DataFrame:
         "type": df["Vessel type"].astype(str).str.strip(),
         "year_built": pd.to_numeric(df["Year built"], errors="coerce").astype("Int64"),
         "flag": df["Flag / registry"].astype(str).str.replace(r"\s*\(.*\)", "", regex=True),
+        # dimensions (add these fields in Airtable - see docs/airtable_fields.md); empty until then
+        "length_m": pd.to_numeric(df["Length overall (m)"], errors="coerce"),
+        "beam_m": pd.to_numeric(df["Beam (m)"], errors="coerce"),
+        "air_draft_m": pd.to_numeric(df["Air draft (m)"], errors="coerce"),
     })
     link_cols = [c for c in ["Linked 3D Models", "Linked SAR Imagery", "Linked Satellite Optical Imagery", "AIS Updates"] if c in df]
     out["tracked"] = df[link_cols].notna().any(axis=1).values

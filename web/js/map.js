@@ -11,7 +11,9 @@
 import { BASEMAPS, OVERLAYS, SHIP_CATEGORIES, EVENT_TYPES, START_VIEW, MAX_GAP_HOURS, VECTOR_LAYERS } from "./config.js";
 
 let map;
-const handlers = { eventClick: () => {}, shipClick: () => {}, portClick: () => {}, imageryClick: () => {}, vectorClick: () => {} };
+const handlers = { eventClick: () => {}, shipClick: () => {}, portClick: () => {}, imageryClick: () => {}, vectorClick: () => {},
+                   cueClick: () => {}, detectionClick: () => {} };
+const PRIORITY_COLOR = ["match", ["get", "priority"], "high", "#ef4444", "medium", "#f59e0b", "#94a3b8"];
 const imageryMarkers = [];
 const vectorLabels = {};   // layer id -> [{featureId, marker}]
 const shipMarkers = new Map();   // vessel name -> maplibregl.Marker
@@ -301,6 +303,43 @@ export function setImagery(images) {
     el.addEventListener("click", (ev) => { ev.stopPropagation(); handlers.imageryClick(img); });
     imageryMarkers.push(new maplibregl.Marker({ element: el }).setLngLat([img.lon, img.lat]).addTo(map));
   }
+}
+
+// ------------------------------------------------------------------ cues (pings) & satellite scenes
+export function setCues(cues) {
+  const feats = cues.map((c) => circlePolygon(c.lon, c.lat, Math.max(c.radius, 1),
+    { cue_id: c.cue_id, vessel: c.vessel, priority: c.priority, kind: c.kind, t0: c.t, t1: c.tEnd }));
+  const dets = cues.flatMap((c) => c.detections.filter((d) => d.lat != null).map((d) =>
+    pt(d.lon, d.lat, { cue_id: c.cue_id, n: +d.detection, dark: d.dark, score: d.score ?? 0 })));
+  const add = (id, data) => (map.getSource(id) ? map.getSource(id).setData(data) : map.addSource(id, { type: "geojson", data }));
+  add("cues", fc(feats)); add("scenes", fc([])); add("detections", fc(dets));
+  if (map.getLayer("cues-fill")) return;
+  const before = map.getLayer("events") ? "events" : undefined;
+  map.addLayer({ id: "scenes-fill", type: "fill", source: "scenes",
+    paint: { "fill-color": ["match", ["get", "kind"], "SAR", "#a855f7", "#22d3ee"], "fill-opacity": 0.06 } }, before);
+  map.addLayer({ id: "scenes-line", type: "line", source: "scenes",
+    paint: { "line-color": ["match", ["get", "kind"], "SAR", "#c084fc", "#67e8f9"], "line-width": 1.2, "line-opacity": 0.8 } }, before);
+  map.addLayer({ id: "cues-fill", type: "fill", source: "cues", paint: { "fill-color": PRIORITY_COLOR, "fill-opacity": 0.07 } }, before);
+  map.addLayer({ id: "cues-line", type: "line", source: "cues",
+    paint: { "line-color": PRIORITY_COLOR, "line-width": 1.8, "line-dasharray": [3, 2] } }, before);
+  map.addLayer({ id: "detections", type: "circle", source: "detections", paint: {
+    "circle-radius": 7, "circle-color": ["case", ["get", "dark"], "#ef4444", "#22c55e"],
+    "circle-stroke-color": "#fff", "circle-stroke-width": 2 } });
+  map.on("click", "cues-fill", (e) => handlers.cueClick(e.features[0].properties.cue_id));
+  map.on("click", "detections", (e) => handlers.detectionClick(e.features[0].properties.cue_id, e.features[0].properties.n, e.lngLat));
+  for (const id of ["cues-fill", "detections"]) {
+    map.on("mouseenter", id, () => (map.getCanvas().style.cursor = "pointer"));
+    map.on("mouseleave", id, () => (map.getCanvas().style.cursor = ""));
+  }
+}
+export function showScenes(scenes) {
+  const feats = scenes.filter((s) => s.footprint?.length).map((s) => ({ type: "Feature",
+    geometry: { type: "Polygon", coordinates: [s.footprint] }, properties: { kind: s.kind, id: s.scene_id } }));
+  map.getSource("scenes")?.setData(fc(feats));
+}
+export function setCueVisibility(on, selectedCue) {
+  for (const id of ["cues-fill", "cues-line", "detections"]) if (map.getLayer(id)) map.setLayoutProperty(id, "visibility", on ? "visible" : "none");
+  if (map.getLayer("cues-line")) map.setPaintProperty("cues-line", "line-width", selectedCue ? ["case", ["==", ["get", "cue_id"], selectedCue], 3.5, 1.2] : 1.8);
 }
 
 // ------------------------------------------------------------------ camera & popups

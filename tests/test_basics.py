@@ -249,3 +249,92 @@ def test_header_row_in_registry_is_skipped_not_an_error():
     reg = pd.DataFrame({"imo": ["9694725", "IMO number", "9694726"], "name": ["ARKTIKA", "Name of ship", "TYPO"]})
     issues = {i["record"]: i["severity"] for i in check_registry(reg)}
     assert issues["Name of ship"] == "info" and issues["TYPO"] == "error" and "ARKTIKA" not in issues
+
+
+# ================================================================ imagery pipeline
+def _gap_track():
+    """A ship that switches AIS off for 20 h (GFW-style ais_off / ais_on pair)."""
+    t = _track()
+    t["source"] = "GFW"
+    off = t.iloc[[-1]].copy(); off["event_type"] = "ais_off"; off["event_id"] = "g1"
+    on = off.copy(); on["event_type"] = "ais_on"; on["event_id"] = "g1:on"
+    on["timestamp"] += pd.Timedelta(hours=20); on["lon"] += 3
+    return standardize(pd.concat([t, off, on]))
+
+
+def test_ais_off_becomes_a_high_priority_cue():
+    from tracker.cueing import build_cues
+    df = add_features(match_to_watchlist(_gap_track(), load_vessels()), load_ports())
+    cues = build_cues(df, load_vessels())
+    gap = cues[cues["kind"] == "ais_off"].iloc[0]
+    assert gap["priority"] == "high" and "20 h" in gap["reason"]
+    assert gap["start"] < gap["end"] and gap["radius_km"] > 30
+    assert build_cues(df, load_vessels())["cue_id"].tolist() == cues["cue_id"].tolist()   # stable ids
+
+
+def test_copernicus_results_become_scene_rows(monkeypatch):
+    from tracker.sources import copernicus
+    cue = {"cue_id": "abc", "vessel": "Arktika", "lat": 69.0, "lon": 33.0, "radius_km": 50,
+           "start": pd.Timestamp("2026-10-01T00:00Z"), "end": pd.Timestamp("2026-10-02T00:00Z")}
+    fake = {"value": [{
+        "Id": "uuid-1", "Name": "S1A_EW_GRDM_1SDH_20261001T061437_x.SAFE", "Online": True,
+        "ContentDate": {"Start": "2026-10-01T06:14:37.000Z", "End": "2026-10-01T06:15:37.000Z"},
+        "GeoFootprint": {"type": "Polygon", "coordinates": [[[30, 67], [37, 67], [37, 71], [30, 71], [30, 67]]]},
+        "Attributes": [{"Name": "orbitDirection", "Value": "DESCENDING"}, {"Name": "operationalMode", "Value": "EW"},
+                       {"Name": "polarisationChannels", "Value": "HH&HV"}, {"Name": "platformSerialIdentifier", "Value": "A"}]}]}
+    calls = []
+    monkeypatch.setattr(copernicus, "_get", lambda params, log: calls.append(params) or fake)
+    rows = copernicus.search_cue(cue, kinds=("SAR",), log=lambda m: None)
+    r = rows[0]
+    assert r["satellite"] == "Sentinel-1A" and r["mode"] == "EW" and r["orbit_direction"] == "DESCENDING"
+    assert r["covers_cue_centre"] is True and r["hours_from_window"] == 0.0
+    assert "OData.CSC.Intersects" in calls[0]["$filter"] and "SENTINEL-1" in calls[0]["$filter"]
+
+
+def test_detects_and_measures_a_ship_in_a_radar_chip():
+    from tracker.sar_detect import synthetic_chip, detect_ships
+    d = detect_ships(synthetic_chip(250, 45, 30, pixel_m=10), 10, bounds=(32.9, 68.95, 33.1, 69.05))
+    assert len(d) == 1
+    assert abs(d[0]["length_m"] - 250) <= d[0]["length_err_m"]
+    assert abs(d[0]["heading_deg"] - 30) < 5
+    assert 68.95 < d[0]["lat"] < 69.05
+
+
+def test_shadow_geometry():
+    from tracker.shadow import height_from_shadow, shadow_from_height, shadow_azimuth, lab_to_real
+    assert abs(shadow_from_height(48, 20) - 131.9) < 0.5      # low Arctic sun: long shadow
+    assert abs(height_from_shadow(131.9, 20) - 48) < 0.5
+    assert shadow_azimuth(200) == 20
+    assert abs(lab_to_real(427, 700) - 298.9) < 0.1
+
+
+def test_match_score_prefers_the_right_size_ship():
+    from tracker.match import score_candidate
+    det = {"lat": 69.0, "lon": 33.0, "length_m": 300, "width_m": 50, "length_err_m": 15, "width_err_m": 15, "pos_err_m": 10}
+    est = {"lat": 69.01, "lon": 33.0, "uncertainty_km": 2}
+    big = score_candidate(det, est, {"length_m": 299, "beam_m": 50})
+    small = score_candidate(det, est, {"length_m": 120, "beam_m": 20})
+    unknown = score_candidate(det, est, None)
+    assert big["score"] > 0.5 > small["score"] and "length_m" in unknown["missing"]
+
+
+def test_chip_pipeline_end_to_end_with_fake_satellite(monkeypatch):
+    from tracker import sar_chips
+    from tracker.sar_detect import synthetic_chip
+    df = add_features(match_to_watchlist(_track(), load_vessels()), load_ports())
+    when = df["timestamp"].iloc[2]
+    lat, lon = df["lat"].iloc[2], df["lon"].iloc[2]
+    scenes = pd.DataFrame([{"cue_id": "c1", "vessel": "ALEXEY KOSYGIN", "kind": "SAR", "scene_id": "S1C_IW_TEST",
+                            "product_uuid": "abcd1234", "start_utc": when.isoformat(), "end_utc": when.isoformat(),
+                            "hours_from_window": 0}])
+    monkeypatch.setattr(sar_chips, "is_configured", lambda: True)
+    monkeypatch.setattr(sar_chips, "save_preview", lambda *a: None)
+    def fake_chip(la, lo, half, w, **k):
+        img = synthetic_chip(300, 50, 90, pixel_m=10, size=200)
+        b = sar_chips.chip_bounds(la, lo, 1.0)
+        return img, b, "HH", 10.0, None
+    monkeypatch.setattr(sar_chips, "fetch_chip", fake_chip)
+    out = sar_chips.process_scenes(scenes, df, pd.DataFrame(), pd.DataFrame(columns=["imo"]), log=lambda m: None)
+    row = out.iloc[0]
+    assert row["detection"] == 1 and row["best_vessel"] == "ALEXEY KOSYGIN"
+    assert abs(row["length_m"] - 300) < 20 and "length_m" in row["missing"]

@@ -242,3 +242,47 @@ export function routePopup(p) {
   return `<div class="pop"><div class="pop-head"><span class="dot" style="background:${esc(p.color)}"></span><b>${esc(p.name)}</b></div>
     <p style="margin:6px 0 0">${esc(p.about)}</p><p class="hint">Schematic line for orientation - not for navigation.</p></div>`;
 }
+
+// ---------------------------------------------------------------- ping (cue) card
+const KIND_LABEL = { ais_off: "AIS switched off", spoofing: "Possible spoofing", silent: "No recent record", identity: "Identity change" };
+export function cueCard(c, store) {
+  const sar = c.scenes.filter((s) => s.kind === "SAR"), opt = c.scenes.filter((s) => s.kind === "Optical");
+  const sceneRow = (s) => `<tr><td>${fmtTime(s.t).replace(" UTC", "")}</td><td>${esc(s.satellite)}</td>
+    <td>${esc(s.mode || "")}${s.orbit_direction ? " · " + esc(s.orbit_direction.slice(0, 4).toLowerCase()) : ""}</td>
+    <td>${s.kind === "Optical" ? `${s.sunEl != null ? s.sunEl.toFixed(0) + "° sun" : ""}${s.cloud_cover ? " · " + Math.round(+s.cloud_cover) + "% cloud" : ""}` : esc(s.polarisation || "")}</td>
+    <td>${s.covers ? "✓" : ""}</td><td><a href="${esc(s.link)}" target="_blank" rel="noopener">↗</a></td></tr>`;
+  const table = (list) => `<table class="mini"><thead><tr><th>Time (UTC)</th><th>Satellite</th><th>Mode</th><th></th><th title="Covers the centre of the search area">Ctr</th><th></th></tr></thead>
+    <tbody>${list.map(sceneRow).join("")}</tbody></table>`;
+  const dets = c.detections.filter((d) => +d.detection > 0);
+  const chips = [...new Set(c.detections.map((d) => d.chip).filter(Boolean))];
+  return `<header class="card-head">
+      <span class="dot" style="background:${c.priority === "high" ? "#ef4444" : c.priority === "medium" ? "#f59e0b" : "#94a3b8"}"></span>
+      <div><h3>${esc(KIND_LABEL[c.kind] || c.kind)}</h3><div class="muted">${esc(c.vessel)} · ${esc(c.priority)} priority${c.isNew ? ' · <span class="tag red">new</span>' : ""}</div></div>
+      <button class="icon-btn" data-close title="Close">×</button>
+    </header>
+    <div class="card-actions"><button class="btn" data-zoom-cue="${esc(c.cue_id)}">Show search area</button>
+      <button class="btn ghost" data-ship="${esc(c.vessel)}">Ship card</button></div>
+    ${section("Why", `<p>${esc(c.reason)}</p><dl>
+      ${row("Look between", `${fmtTime(c.t)}<br>${fmtTime(c.tEnd)}`)}
+      ${row("Search area", `${c.lat.toFixed(2)}, ${c.lon.toFixed(2)} · radius ${Math.round(c.radius)} km${c.radius_capped === "True" ? " (capped)" : ""}`)}
+      ${row("First flagged", esc(c.first_seen))}</dl>`)}
+    ${section(`Radar (Sentinel-1) · ${sar.length} scenes`, sar.length ? table(sar)
+      : "<p class='muted'>None found yet. Searches run with the daily update.</p>")}
+    ${section(`Optical (Sentinel-2) · ${opt.length} scenes`, opt.length ? table(opt)
+      : "<p class='muted'>None (cloud, polar night, or not searched yet).</p>")}
+    ${chips.length || dets.length ? section(`Detections · ${dets.length}`, `
+      ${chips.map((ch) => `<a href="${esc(ch)}" target="_blank" rel="noopener"><img class="chip" src="${esc(ch)}" alt="SAR chip"></a>`).join("")}
+      ${dets.map((d) => `<div class="alert-item"><b>#${esc(d.detection)}</b> ${d.length ?? "?"} × ${d.width ?? "?"} m · heading ${esc(d.heading_deg)}°
+        · ${d.dark ? '<span class="tag red">no AIS match - possible dark vessel</span>'
+                    : `best match <b>${esc(d.best_vessel)}</b> (${d.score})`}
+        ${d.missing ? `<br><span class="hint">No registry ${esc(d.missing.replaceAll("_m", "").replace(",", " / "))} - add ship dimensions in Airtable to use size in the score</span>` : ""}</div>`).join("")}
+      <p class="hint">Contains modified Copernicus Sentinel data.</p>`) : ""}`;
+}
+
+export function detectionPopup(c, d) {
+  return `<div class="pop"><div class="pop-head"><b>SAR detection #${esc(d.detection)}</b></div>
+    <div class="pop-ev">${esc(c.vessel)} ping · ${fmtTime(Date.parse(d.time_utc))}</div>
+    <dl>${row("Size", `${d.length ?? "?"} × ${d.width ?? "?"} m (±${esc(d.length_err_m)} m)`)}${row("Heading", `${esc(d.heading_deg)}° (or +180°)`)}
+      ${row("Best match", d.dark ? "none - possible dark vessel" : `${esc(d.best_vessel)} · score ${d.score}`)}
+      ${row("Other", esc(d.other_candidates))}</dl></div>`;
+}

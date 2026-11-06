@@ -115,6 +115,7 @@ export const DATA_LAYERS = [
   { id: "predictions", label: "Predicted positions",          on: true },
   { id: "ports",       label: "Ports",                        on: true },
   { id: "imagery",     label: "Satellite & SAR images (Capstone DB)", on: true },
+  { id: "cues",        label: "Pings: search areas, detections",   on: true },
 ];
 
 // ---------------------------------------------------------------------------

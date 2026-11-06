@@ -225,3 +225,9 @@ body:has(#detail.open) .maplibregl-ctrl-bottom-right { right: 386px; }
 .tab-body h5 a, a.more { color: var(--accent); font-weight: 400; text-transform: none; letter-spacing: 0; text-decoration: none; }
 a.more { display: block; padding: 4px 6px; font-size: 12px; }
 .ship-row.fleet { grid-template-columns: 14px 1fr; }
+
+/* ---------------- pings */
+.ping-stat { cursor: pointer; }
+.ping-stat i { font-style: normal; color: #fecaca; background: rgba(239,68,68,.25); border-radius: 999px; padding: 0 5px; margin-left: 3px; }
+.ping-stat i:empty { display: none; }
+img.chip { width: 100%; border-radius: 8px; border: 1px solid var(--line); margin: 4px 0 8px; image-rendering: pixelated; }

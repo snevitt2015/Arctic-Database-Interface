@@ -20,6 +20,9 @@ export function renderStats(store, state, visible) {
   set("#s-dark", store.dark.filter(inWin).length);
   set("#s-jumps", visible.filter((e) => e.jump).length);
   set("#s-ids", Object.keys(store.identities).filter((v) => state.vessels.has(v)).length);
+  const pings = (store.cues || []).filter((c) => state.vessels.has(c.vessel));
+  set("#s-pings", pings.filter((c) => c.priority !== "low").length);
+  $("#s-pings-new").textContent = pings.some((c) => c.isNew) ? `${pings.filter((c) => c.isNew).length} new` : "";
   $("#updated").textContent = "Data to " + fmtDay(store.maxT);
 }
 
@@ -167,6 +170,15 @@ export function renderTimeline(store, state) {
 
 // ---------------------------------------------------------------- alerts drawer
 export const ALERT_TABS = {
+  pings: {
+    label: "Pings",
+    rows: (store, state) => (store.cues || []).filter((c) => state.vessels.has(c.vessel)),
+    cols: [["", (r) => (r.isNew ? "● new" : "")], ["Priority", (r) => r.priority], ["Type", (r) => r.kind.replace("_", " ")],
+           ["Ship", (r) => r.vessel], ["From", (r) => fmtTime(r.t)], ["Why", (r) => r.reason],
+           ["SAR", (r) => r.scenes.filter((s) => s.kind === "SAR").length, "num"],
+           ["Optical", (r) => r.scenes.filter((s) => s.kind === "Optical").length, "num"],
+           ["Detections", (r) => r.detections.filter((d) => +d.detection > 0).length, "num"]],
+  },
   dark: {
     label: "AIS switched off",
     rows: (store, state, visible) => store.dark.filter((d) => state.vessels.has(d.vessel) && d.t >= state.start && d.t <= state.end),
@@ -201,7 +213,8 @@ export const ALERT_TABS = {
 export function renderAlerts(store, state, visible) {
   const tabs = Object.entries(ALERT_TABS).map(([k, t]) => ({ k, t, rows: t.rows(store, state, visible) }));
   // the badge counts warning signs only: AIS off, impossible moves and encounters (not routine loitering)
-  $("#alert-count").textContent = tabs.reduce((n, x) => n + (x.k === "dark" || x.k === "jumps" ? x.rows.length
+  $("#alert-count").textContent = tabs.reduce((n, x) => n + (x.k === "pings" ? x.rows.filter((r) => r.priority === "high").length
+    : x.k === "dark" || x.k === "jumps" ? x.rows.length
     : x.k === "checks" ? x.rows.filter((r) => r.severity === "error").length
     : x.k === "meet" ? x.rows.filter((r) => r.ev === "encounter").length : 0), 0);
   $("#alert-tabs").innerHTML = tabs.map(({ k, t, rows }) =>

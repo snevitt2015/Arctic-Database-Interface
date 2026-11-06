@@ -30,13 +30,15 @@ const loadJson = (url) => fetch(url + "?v=" + Date.now()).then((r) => (r.ok ? r.
 const groupBy = (rows, key) => rows.reduce((m, r) => ((m[r[key]] ??= []).push(r), m), {});
 
 export async function loadAll() {
-  const [features, vessels, ports, refPorts, dark, preds, ids, fleet, checks, imagery, models, typeStats, dataChecks, ...vectors] = await Promise.all([
+  const [features, vessels, ports, refPorts, dark, preds, ids, fleet, checks, imagery, models, typeStats, dataChecks,
+         cues, scenes, detections, ...vectors] = await Promise.all([
     parse("output_features.csv"), parse("output_vessels.csv"), parse("output_ports.csv", true),
     parse("reference_ports.csv", true), parse("output_dark_periods.csv", true),
     parse("output_predictions.csv", true), parse("output_identities.csv", true),
     // Capstone Database (team Airtable export)
     parse("output_fleet.csv", true), parse("output_ais_checks.csv", true), parse("output_imagery.csv", true),
     parse("output_models.csv", true), parse("output_type_stats.csv", true), parse("output_data_checks.csv", true),
+    parse("output_cues.csv", true), parse("output_scenes.csv", true), parse("output_detections.csv", true),
     ...VECTOR_LAYERS.map((v) => loadJson(v.url)),
   ]);
 
@@ -52,6 +54,17 @@ export async function loadAll() {
   store.models = groupBy(models, "imo");
   store.typeStats = typeStats;
   store.dataChecks = dataChecks;
+
+  // Cues ("pings") -> satellite scenes -> detections (tracker/cueing.py, sources/copernicus.py, sar_chips.py)
+  const scenesBy = groupBy(scenes.map((s) => ({ ...s, t: Date.parse(s.start_utc), sunEl: num(s.sun_elevation),
+    covers: yes(s.covers_cue_centre), footprint: s.footprint ? JSON.parse(s.footprint) : null })), "cue_id");
+  const detsBy = groupBy(detections.map((d) => ({ ...d, lat: num(d.lat), lon: num(d.lon), score: num(d.best_score),
+    length: num(d.length_m), width: num(d.width_m), dark: yes(d.dark_candidate) })), "cue_id");
+  const latestDay = cues.reduce((m, c) => (c.first_seen > m ? c.first_seen : m), "");
+  store.cues = cues.map((c) => ({
+    ...c, t: Date.parse(c.start), tEnd: Date.parse(c.end), lat: +c.lat, lon: +c.lon, radius: +c.radius_km,
+    isNew: c.first_seen === latestDay, scenes: scenesBy[c.cue_id] || [], detections: detsBy[c.cue_id] || [],
+  }));
   store.vectors = Object.fromEntries(VECTOR_LAYERS.map((v, i) => [v.id, vectors[i]]));
 
   store.vessels = vessels.map((v) => ({ ...v, cat: categoryOf(v.type) }));

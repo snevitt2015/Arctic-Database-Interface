@@ -128,6 +128,27 @@ All data goes into one growing file, `data/positions.csv`, so history is never l
 **Fields to add in Airtable** (ship dimensions, exact UTC times, SAR scenes, detections and matches, 3D-print capture
 sessions): see [`docs/airtable_fields.md`](docs/airtable_fields.md).
 
+## Satellite imagery: pings → scenes → detections
+
+Every daily run turns suspicious tracking events into **pings** (`tracker/cueing.py`). Each ping is a place, a time window
+and a reason: AIS switched off, an impossible move (possible spoofing), a change of identity, or a long gap in records.
+The run then:
+
+1. **Finds free satellite images** over each ping (`tracker/sources/copernicus.py`): Sentinel-1 radar (works through
+   cloud and polar night) and Sentinel-2 optical (with the sun's elevation and azimuth worked out for shadow analysis).
+   No account needed.
+2. **Pulls a small radar image crop** when the ship's position at the image time is known within about 15 km
+   (`tracker/sar_chips.py`). This needs a free Copernicus account; add `CDSE_CLIENT_ID` and `CDSE_CLIENT_SECRET` as GitHub secrets.
+3. **Detects and measures ships** in the crop (`tracker/sar_detect.py`): length, width and heading, each with an error.
+4. **Scores which watch-list ship each detection could be** (`tracker/match.py`), using position, plus length and beam
+   once they're in the Airtable Ships table. A detection with no plausible AIS ship is flagged as a **possible dark vessel**.
+
+Results: `data/output_cues.csv`, `output_scenes.csv`, `output_detections.csv`, crops in `data/chips/`. In the viewer, click
+**Pings** in the header. Shadow geometry for optical and 3D-print photos is in `tracker/shadow.py`.
+
+**Licensing.** Sentinel data is free and open: credit "Contains modified Copernicus Sentinel data". **GEGD / Maxar imagery is
+licensed for US Government purposes (USG-Plus)** and must not be added to this public repository or website.
+
 ## How the algorithm works
 
 ```
