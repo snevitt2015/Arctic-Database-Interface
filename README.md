@@ -178,6 +178,9 @@ Excel Operations ─┘   (schema.py)        (matching.py)    (features.py)     
 | `tracker/matching.py` | pairs OSINT rows with Excel vessels: IMO → MMSI → name |
 | `tracker/features.py` | speed, direction, turns, gaps, nearest port, dark/spoofing flags, risk score |
 | `tracker/prediction.py` | future positions + backtest (accuracy check on past data) |
+| `tracker/kalman.py` | Kalman filter: one track per ship from every source, calibrated uncertainty, "unexpected position" check |
+| `tracker/clustering.py` | Euclidean clustering, L-shape fitting, k-means ship splitting and size groups (radar detections) |
+| `tracker/sar_detect.py` | finds and measures ships in radar image chips |
 | `tracker/geo.py` | distance / direction maths (great-circle, which matters in the Arctic) |
 | `app.py` | the user interface |
 
@@ -186,11 +189,29 @@ speed and course, reported vs. calculated speed, direction change, nearest port 
 in-port flag, AIS gap (> 6 h by default), speed mismatch (possible spoofing), impossible jump
 (> 30 kn), and a simple risk score.
 
-**Prediction methods** (both give a growing uncertainty radius):
+**Prediction methods** (all give a growing uncertainty radius):
 * `dead_reckoning`: last position + last speed + last direction.
 * `recent_average`: average movement over the last 5 positions. This still works when a dark
   ship stops broadcasting speed and heading.
+* `kalman`: a Kalman filter over every report, each weighted by its accuracy. Its 95 % area is
+  calibrated on our own data: 97.8 % of past reports fell inside it. On GFW events (no speed
+  given) the area is wide, about 500 km after 24 h. With real AIS speed and course
+  (MarineTraffic or TankerMap exports) it tightens to about 80 km.
 * A ship in port or under 0.5 kn is predicted to stay where it is.
+
+**Kalman check:** a report outside the filter's 99.9 % area is a `track_anomaly` ping (medium
+priority), unless it's already an impossible move. Reports after more than 14 days of silence
+start a new track, so nothing is flagged for them.
+
+**Radar detections** (`sar_detect.py`, run on each radar image chip):
+1. CFAR finds pixels much brighter than the sea around them.
+2. Euclidean clustering joins pieces closer than 80 m, so a ship split by a dark deck counts once.
+3. k-means splits a blob that is too wide or too long for one ship into two ships. These are
+   flagged `possible_sts`, because two tankers moored alongside for a ship-to-ship transfer look
+   like one blob.
+4. L-shape fitting measures length, beam and heading, and stays accurate when radar lights up
+   only two sides of the ship.
+5. Once there are 20 or more detections, k-means sorts them into size groups (`size_class`).
 
 The **Predictions** tab has a backtest that shows how many km off each method was on past data.
 Use it to check whether a new method is actually better.

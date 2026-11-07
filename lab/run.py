@@ -26,6 +26,14 @@ def run(photo_folder, out=None, preview=0, debug=True, settings=None, redo=False
         print(f"Can't find the folder: {folder}\nCopy the path from File Explorer's address bar.")
         return 1
     out = Path(out) if out else REPO / "lab_out"
+    from lab.settings import SETTINGS_FILE_NAME
+    if not settings and (folder / SETTINGS_FILE_NAME).exists():
+        settings = str(folder / SETTINGS_FILE_NAME)      # your measurements, kept with the photos
+    if settings:
+        print(f"Using settings from {settings}")
+    else:
+        print("Using the numbers in lab/settings.py. To keep them when you download new code, run once:\n"
+              f'  py -m lab.settings "{folder}"')
     s = ["--settings", settings] if settings else []
     t0 = time.time()
 

@@ -25,6 +25,8 @@ import pandas as pd
 import requests
 
 from tracker.interpolate import position_at, candidates_near
+from tracker.kalman import kalman_position_at
+from tracker.clustering import size_classes
 from tracker.sar_detect import detect_ships
 from tracker.match import rank_candidates, UNMATCHED_SCORE
 
@@ -138,7 +140,8 @@ def process_scenes(scenes: pd.DataFrame, df: pd.DataFrame, cues: pd.DataFrame,
         if key in done or pulled >= MAX_CHIPS_PER_RUN:
             continue
         mid = pd.Timestamp(s["start_utc"]) + (pd.Timestamp(s["end_utc"]) - pd.Timestamp(s["start_utc"])) / 2
-        est = position_at(df[df["vessel"] == s["vessel"]], mid)
+        track = df[df["vessel"] == s["vessel"]]
+        est = _best_estimate(position_at(track, mid), kalman_position_at(track, mid))
         if est["lat"] is None or est["uncertainty_km"] is None or est["uncertainty_km"] > CHIP_MAX_UNCERTAINTY_KM:
             continue
         half = max(5.0, est["uncertainty_km"] + 2)
@@ -164,11 +167,41 @@ def process_scenes(scenes: pd.DataFrame, df: pd.DataFrame, cues: pd.DataFrame,
             ranked = rank_candidates(d, cands, reg) if not cands.empty else []
             best = ranked[0] if ranked else {}
             rows.append({**base, "detection": i, **{k: d.get(k) for k in ("lat", "lon", "length_m", "length_err_m",
-                         "width_m", "width_err_m", "heading_deg", "contrast_db")},
+                         "width_m", "width_err_m", "heading_deg", "heading_pca_deg", "contrast_db",
+                         "possible_sts", "ship_shaped")},
                          "best_vessel": best.get("vessel", ""), "best_score": best.get("score", 0.0),
                          "score_parts": ", ".join(f"{k}={v}" for k, v in best.items() if k.startswith("p_")),
                          "missing": best.get("missing", ""),
                          "dark_candidate": (not ranked) or best.get("score", 0) < UNMATCHED_SCORE,
                          "other_candidates": "; ".join(f"{r['vessel']} {r['score']}" for r in ranked[1:4])})
     new = pd.DataFrame(rows)
-    return pd.concat([previous, new], ignore_index=True) if not previous.empty else new
+    out = pd.concat([previous, new], ignore_index=True) if not previous.empty else new
+    return add_size_classes(out)
+
+
+def _best_estimate(a: dict, b: dict) -> dict:
+    """The position estimate with the smaller uncertainty (interpolation vs Kalman filter)."""
+    ok = [e for e in (a, b) if e.get("lat") is not None and e.get("uncertainty_km") is not None]
+    return min(ok, key=lambda e: e["uncertainty_km"]) if ok else a
+
+
+MIN_FOR_SIZE_CLASSES = 20
+SIZE_CLASSES = 3
+
+
+def add_size_classes(dets: pd.DataFrame) -> pd.DataFrame:
+    """k-means on length and beam of every ship-shaped detection so far -> size_class 0 (small)
+    .. 2 (large), with the group's typical size. Needs MIN_FOR_SIZE_CLASSES detections."""
+    if dets.empty or "length_m" not in dets:
+        return dets
+    dets = dets.copy()
+    use = dets["length_m"].notna() & (dets.get("ship_shaped", True) != False)
+    dets["size_class"] = None
+    dets["size_class_typical"] = None
+    if use.sum() < MIN_FOR_SIZE_CLASSES:
+        return dets
+    labels, centres = size_classes(dets.loc[use, "length_m"], dets.loc[use, "width_m"], SIZE_CLASSES)
+    dets.loc[use, "size_class"] = labels
+    dets.loc[use, "size_class_typical"] = [f"~{centres[l][0]:.0f} x {centres[l][1]:.0f} m" if l >= 0 else None
+                                           for l in labels]
+    return dets

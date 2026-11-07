@@ -62,9 +62,12 @@ def main():
         if not p.empty:
             p.insert(0, "vessel", vessel)
             predictions.append(p)
-            p24 = p[(p["hours_ahead"] == 24) & (p["method"] == "dead_reckoning")]
-            if not p24.empty:
-                nxt = f"-> 24h: {p24.iloc[0]['lat']:.2f}, {p24.iloc[0]['lon']:.2f}"
+            for m in ("dead_reckoning", "kalman", "recent_average"):
+                p24 = p[(p["hours_ahead"] == 24) & (p["method"] == m)]
+                if not p24.empty:
+                    r24 = p24.iloc[0]
+                    nxt = f"-> 24h: {r24['lat']:.2f}, {r24['lon']:.2f} (±{r24['uncertainty_km']:.0f} km, {m})"
+                    break
         spd = "  ?  kn" if pd.isna(last["speed_used"]) else f"{last['speed_used']:4.1f} kn"
         print(f"  {vessel:16} {last['timestamp']:%Y-%m-%d %H:%M}  {last['lat']:6.2f}, {last['lon']:7.2f}  {spd}  {nxt}")
 
@@ -72,7 +75,9 @@ def main():
     print(f"\n{len(dark)} suspected dark periods.")
 
     # Save results so they can be opened in Excel or committed to GitHub
-    df.to_csv(DATA_DIR / "output_features.csv", index=False)
+    # the viewer loads this file: keep only the useful Kalman columns (all are used in memory)
+    df.drop(columns=["kf_lat", "kf_lon", "kf_course", "kf_nis", "kf_reset"], errors="ignore").to_csv(
+        DATA_DIR / "output_features.csv", index=False)
     dark.to_csv(DATA_DIR / "output_dark_periods.csv", index=False)
     pred_cols = ["vessel", "method", "hours_ahead", "timestamp", "lat", "lon", "uncertainty_km"]
     (pd.concat(predictions) if predictions else pd.DataFrame(columns=pred_cols)).to_csv(

@@ -58,6 +58,17 @@ def load(path=None) -> dict:
     return s
 
 
+SETTINGS_FILE_NAME = "lab_settings.json"
+
+
+def save(path, settings=None):
+    """Write the settings (by default: the numbers currently in this file) to a JSON file.
+    Keep that file in your PHOTO folder - lab.run picks it up from there automatically, so your
+    measurements survive downloading a new copy of the code."""
+    Path(path).write_text(json.dumps(settings or DEFAULTS, indent=2))
+    return Path(path)
+
+
 def vessel(settings: dict, name: str) -> dict:
     v = settings["vessels"].get(name)
     if v is None:
@@ -70,3 +81,12 @@ def off_nadir(settings: dict, camera_angle: float) -> float:
     if camera_angle is None:
         return None
     return 90.0 - camera_angle if settings["camera_angle_convention"] == "elevation" else camera_angle
+
+
+if __name__ == "__main__":
+    # python -m lab.settings "C:/path/to/PhotosFolder"  -> saves PhotosFolder/lab_settings.json
+    import sys
+    target = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(".")
+    if target.is_dir():
+        target = target / SETTINGS_FILE_NAME
+    print(f"Saved your settings to {save(target)}")

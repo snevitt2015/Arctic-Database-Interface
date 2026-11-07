@@ -5,9 +5,12 @@ Ships are bright points on a darker sea in radar images. Steps:
   1. CFAR ("constant false alarm rate"): a pixel is a detection if it is much brighter
      than the sea AROUND it (local mean + K x local spread). This adapts to rough and
      calm sea in different parts of the image.
-  2. Group touching bright pixels into objects.
-  3. Measure each object: centre, length, width and heading (principal axes of the
-     bright pixels), each with an error based on the pixel size.
+  2. Group bright pixels into objects with EUCLIDEAN CLUSTERING: pieces closer than
+     CLUSTER_GAP_M are one ship (a tanker's dark deck can split it into bow/tanks/stern).
+  3. Too wide or too long for one ship? Try a K-MEANS split into 2 ships - two tankers
+     alongside each other (ship-to-ship transfer) merge into one blob. Flagged possible_sts.
+  4. Measure each ship with L-SHAPE FITTING (best rectangle; robust when radar only lights
+     up two sides): centre, length, width, heading, corners, each with a pixel-based error.
 
 Input: a 2-D array of radar backscatter (sigma0, linear units), north-up, plus the
 pixel size in metres and the chip's lat/lon bounds. Works on any SAR source
@@ -23,6 +26,8 @@ Limits to keep in mind:
 """
 import numpy as np
 from scipy import ndimage
+
+from tracker.clustering import euclidean_clusters, l_shape_fit, split_merged, is_ship_shaped, CLUSTER_GAP_M
 
 K_SIGMA = 5.0            # a "seed" pixel is this many local standard deviations brighter than the sea
 K_GROW = 4.0             # ...and the ship's outline is grown out to pixels this much brighter
@@ -63,11 +68,20 @@ def detect_ships(sigma0, pixel_m, bounds=None, mask=None, k=K_SIGMA):
     if mask is not None:
         seeds &= ~mask
         grow &= ~mask
-    # an object = connected "grow" pixels that contain at least one seed; close 1-pixel gaps first
+    # objects = Euclidean clusters of "grow" pixels that contain at least one seed
+    # 1) touching pieces that contain a seed (drops sea speckle that only passed the low bar)
     grow = ndimage.binary_closing(grow, structure=np.ones((3, 3))) | seeds
-    labels, n = ndimage.label(grow, structure=np.ones((3, 3)))
-    seeded = np.unique(labels[seeds])
-    labels[~np.isin(labels, seeded)] = 0
+    pieces, n_pieces = ndimage.label(grow, structure=np.ones((3, 3)))
+    # a piece is kept only if it is a real return: a seed, at least MIN_PIXELS, and a peak
+    # MIN_CONTRAST_DB above the sea (lone speckle spikes near a ship would otherwise get joined on)
+    idx = np.arange(1, n_pieces + 1)
+    size = ndimage.sum(np.ones_like(img), pieces, idx)
+    peak_ratio = ndimage.maximum(img / np.maximum(mean, 1e-12), pieces, idx)
+    has_seed = ndimage.maximum(seeds.astype(float), pieces, idx) > 0
+    good = idx[(size >= MIN_PIXELS) & has_seed & (peak_ratio >= 10 ** (MIN_CONTRAST_DB / 10))]
+    keep = np.isin(pieces, good)
+    # 2) join pieces closer than CLUSTER_GAP_M (one ship broken up by a dark deck)
+    labels, n = euclidean_clusters(keep, pixel_m, max(CLUSTER_GAP_M, 1.5 * pixel_m))
     rows, cols = img.shape
     out = []
     for i in range(1, n + 1):
@@ -82,49 +96,75 @@ def detect_ships(sigma0, pixel_m, bounds=None, mask=None, k=K_SIGMA):
         # position in metres: x east, y north (rows grow southwards)
         x = c * pixel_m
         y = (rows - 1 - r) * pixel_m
-        cx, cy = np.average(x, weights=w), np.average(y, weights=w)
-        if len(r) >= 2:
-            cov = np.cov(np.vstack([x - cx, y - cy]))
-            vals, vecs = np.linalg.eigh(cov)
-            major = vecs[:, 1]
-        else:
-            major = np.array([0.0, 1.0])
-        minor = np.array([-major[1], major[0]])
-        along = (x - cx) * major[0] + (y - cy) * major[1]
-        across = (x - cx) * minor[0] + (y - cy) * minor[1]
-        length = float(along.max() - along.min() + pixel_m)
-        width = float(across.max() - across.min() + pixel_m)
-        if length > MAX_LENGTH_M:
-            continue
-        heading = (np.degrees(np.arctan2(major[0], major[1])) + 360) % 180   # 0-180, bow/stern unknown
-        det = {
-            "row": float(rows - 1 - cy / pixel_m), "col": float(cx / pixel_m),
-            "pixels": int(len(r)), "peak": float(w.max()),
-            "peak_db": float(10 * np.log10(max(w.max(), 1e-12))), "contrast_db": round(float(contrast_db), 1),
-            "length_m": round(length, 1), "width_m": round(width, 1),
-            "length_err_m": round(1.5 * pixel_m, 1), "width_err_m": round(1.5 * pixel_m, 1),
-            "heading_deg": round(float(heading), 1),
-            "heading_err_deg": round(float(np.degrees(np.arctan2(pixel_m, max(length, pixel_m)))) * 2, 1),
-            "pos_err_m": round(pixel_m, 1),
-        }
-        if bounds is not None:
-            west, south, east, north = bounds
-            det["lat"] = north - (det["row"] + 0.5) / rows * (north - south)
-            det["lon"] = west + (det["col"] + 0.5) / cols * (east - west)
-        out.append(det)
+        if np.ptp(x) > 2 * MAX_LENGTH_M or np.ptp(y) > 2 * MAX_LENGTH_M:
+            continue                                   # land / ice edge, not ships
+        parts = split_merged(x, y, w, pixel_m) if len(r) >= 6 else None
+        groups = parts if parts else [np.arange(len(r))]
+        for part_no, g in enumerate(groups):
+            det = _measure(x[g], y[g], w[g], r[g], c[g], pixel_m, rows, cols, bounds, contrast_db)
+            if det is None:
+                continue
+            det["split_from_blob"] = i if parts else None
+            det["possible_sts"] = bool(parts)          # side-by-side ships: ship-to-ship transfer?
+            out.append(det)
     return sorted(out, key=lambda d: d["peak"], reverse=True)
 
 
-def synthetic_chip(length_m=250, width_m=45, heading_deg=30, pixel_m=10, size=200, seed=1):
-    """A fake radar chip with one ship, for tests and for trying settings."""
+def _measure(x, y, w, r, c, pixel_m, rows, cols, bounds, contrast_db):
+    """Length / width / heading of one ship from its pixels (L-shape fit), plus the old
+    principal-axis heading for comparison."""
+    fit = l_shape_fit(x, y, pixel_m)
+    length, width = fit["length_m"], fit["width_m"]
+    if length > MAX_LENGTH_M:
+        return None
+    cx, cy = np.average(x, weights=w), np.average(y, weights=w)
+    if len(x) >= 2:
+        vals, vecs = np.linalg.eigh(np.cov(np.vstack([x - cx, y - cy])))
+        major = vecs[:, 1]
+        pca_heading = (np.degrees(np.arctan2(major[0], major[1])) + 360) % 180
+    else:
+        pca_heading = np.nan
+    det = {
+        "row": float(rows - 1 - cy / pixel_m), "col": float(cx / pixel_m),
+        "pixels": int(len(x)), "peak": float(w.max()),
+        "peak_db": float(10 * np.log10(max(w.max(), 1e-12))), "contrast_db": round(float(contrast_db), 1),
+        "length_m": round(length, 1), "width_m": round(width, 1),
+        "length_err_m": round(1.5 * pixel_m, 1), "width_err_m": round(1.5 * pixel_m, 1),
+        "heading_deg": round(fit["heading_deg"], 1),            # 0-180, bow/stern unknown
+        "heading_pca_deg": round(float(pca_heading), 1) if pca_heading == pca_heading else None,
+        "heading_err_deg": round(float(np.degrees(np.arctan2(pixel_m, max(length, pixel_m)))) * 2, 1),
+        "pos_err_m": round(pixel_m, 1),
+        # wider than any ship and not splittable into ships: ice, platform, wreck... (kept, but flagged)
+        "ship_shaped": is_ship_shaped(fit, pixel_m),
+        "corners_m": None if fit["corners"] is None else [[round(a, 1), round(b, 1)] for a, b in fit["corners"]],
+    }
+    if bounds is not None:
+        west, south, east, north = bounds
+        det["lat"] = north - (det["row"] + 0.5) / rows * (north - south)
+        det["lon"] = west + (det["col"] + 0.5) / cols * (east - west)
+    return det
+
+
+def synthetic_chip(length_m=250, width_m=45, heading_deg=30, pixel_m=10, size=200, seed=1,
+                   ships=None, deck_gap_m=0.0, lit_sides_only=False):
+    """A fake radar chip, for tests and for trying settings.
+    ships: list of (offset_east_m, offset_north_m, length_m, width_m, heading_deg); default one
+           ship at the centre. deck_gap_m: a dark band across the middle of each ship (low-return
+           deck). lit_sides_only: only two sides bright (the "L" radar often shows)."""
     rng = np.random.default_rng(seed)
     img = rng.gamma(shape=4.0, scale=0.01 / 4, size=(size, size))     # speckled sea, mean 0.01
     yy, xx = np.mgrid[0:size, 0:size]
-    x = (xx - size / 2) * pixel_m
-    y = (size / 2 - yy) * pixel_m
-    h = np.radians(heading_deg)
-    along = x * np.sin(h) + y * np.cos(h)
-    across = x * np.cos(h) - y * np.sin(h)
-    ship = (np.abs(along) <= length_m / 2) & (np.abs(across) <= width_m / 2)
-    img[ship] += rng.uniform(0.5, 2.0, ship.sum())
+    ships = ships or [(0.0, 0.0, length_m, width_m, heading_deg)]
+    for ox, oy, L, W, hd in ships:
+        x = (xx - size / 2) * pixel_m - ox
+        y = (size / 2 - yy) * pixel_m - oy
+        h = np.radians(hd)
+        along = x * np.sin(h) + y * np.cos(h)
+        across = x * np.cos(h) - y * np.sin(h)
+        ship = (np.abs(along) <= L / 2) & (np.abs(across) <= W / 2)
+        if deck_gap_m:
+            ship &= np.abs(along) > deck_gap_m / 2
+        if lit_sides_only:
+            ship &= (along > L / 2 - 1.5 * pixel_m) | (across > W / 2 - 1.5 * pixel_m)
+        img[ship] += rng.uniform(0.5, 2.0, ship.sum())
     return img

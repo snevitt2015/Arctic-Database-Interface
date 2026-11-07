@@ -17,6 +17,9 @@ Cue types (add more in CUE_RULES at the bottom):
                sailing normally can go days without a record. Window = the first days after
                its last record. Area = last position + how far it could sail.
   identity     The ship started using a new name or MMSI. Window = around the change.
+  track_anomaly  A report far outside where the Kalman filter expected the ship (outside its
+               99.9 % area) that ISN'T already an impossible move - e.g. a position that's
+               plausible in speed but off the ship's track. MEDIUM priority.
 
 Every cue gets a stable id (same event -> same id every day), so the viewer can show
 which pings are NEW since the last run.
@@ -136,6 +139,22 @@ def cues_identity(df: pd.DataFrame, since) -> list:
     return out
 
 
+def cues_track_anomaly(df: pd.DataFrame, since) -> list:
+    if "kf_unexpected" not in df:
+        return []
+    out = []
+    odd = df[(df["vessel"] != "") & df["kf_unexpected"] & (df["timestamp"] >= since)
+             & ~df.get("impossible_jump", False) & ~df.get("speed_mismatch", False)]
+    for _, r in odd.iterrows():
+        exp_lat, exp_lon = r.get("kf_lat"), r.get("kf_lon")
+        out.append(_cue("track_anomaly", r["vessel"], r["imo"], r["timestamp"] - pd.Timedelta(hours=6),
+                        r["timestamp"] + pd.Timedelta(hours=6), r["lat"], r["lon"], 30 + r["kf_miss_km"] / 2,
+                        "medium", f"Reported {r['kf_miss_km']:,.0f} km from where its track expected it "
+                                  f"(95 % area {r['kf_expected_km']:,.0f} km)",
+                        other_lat=exp_lat, other_lon=exp_lon))
+    return out
+
+
 def build_cues(df: pd.DataFrame, vessels: pd.DataFrame, now=None, lookback_days=LOOKBACK_DAYS) -> pd.DataFrame:
     """All cues, newest first. `now` defaults to the latest record in the data (not the clock),
     so results don't depend on when the job happens to run."""
@@ -144,7 +163,7 @@ def build_cues(df: pd.DataFrame, vessels: pd.DataFrame, now=None, lookback_days=
     now = pd.Timestamp(now) if now is not None else df["timestamp"].max()
     since = now - pd.Timedelta(days=lookback_days)
     cues = (cues_ais_off(df, since) + cues_spoofing(df, since) +
-            cues_silent(df, vessels, now) + cues_identity(df, since))
+            cues_silent(df, vessels, now) + cues_identity(df, since) + cues_track_anomaly(df, since))
     out = pd.DataFrame(cues)
     if out.empty:
         return out

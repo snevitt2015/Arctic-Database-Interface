@@ -13,6 +13,9 @@ app will show it next to these.
                    positions. Smoother; still works when the ship stopped
                    broadcasting speed/heading (common for dark ships).
 
+  kalman           Kalman filter over every report, each weighted by its accuracy;
+                   uncertainty calibrated so ~95 % of real reports fall inside it.
+
 Output: a table with columns
     method, hours_ahead, timestamp, lat, lon, uncertainty_km
 
@@ -92,10 +95,18 @@ def recent_average(track: pd.DataFrame, n_points=None, hours=None, step=None) ->
                                  last["timestamp"], "recent_average", hours, step))
 
 
+def kalman(track: pd.DataFrame, hours=None, step=None) -> pd.DataFrame:
+    """Kalman filter over EVERY report (see tracker/kalman.py): weights each source by its
+    accuracy and gives a calibrated 95 % uncertainty radius."""
+    from tracker.kalman import kalman_predict
+    return kalman_predict(track, hours=hours, step=step)
+
+
 # Add new methods here and they'll show up in the app automatically.
 METHODS = {
     "dead_reckoning": dead_reckoning,
     "recent_average": recent_average,
+    "kalman": kalman,
 }
 
 

@@ -60,4 +60,6 @@ def build_dataset(include_demo=False):
         return positions, vessels, ports
     positions = matching.match_to_watchlist(positions, vessels)
     positions = features.add_features(positions, ports)
+    from tracker.kalman import add_kalman_flags
+    positions = add_kalman_flags(positions)          # kf_* columns: filtered track + "unexpected" reports
     return positions, vessels, ports
