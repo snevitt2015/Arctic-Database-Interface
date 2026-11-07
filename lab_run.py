@@ -8,7 +8,7 @@ The folder is the one that HOLDS your session folders, e.g.
 Tip: in File Explorer, click the address bar, copy, and paste between the quotes.
 Results go to the lab_out folder next to this file. Your photos are never changed.
 """
-PHOTO_FOLDER = r"C:\Users\snevi\Downloads\Arctic Capstone Work\Lab Photos"
+PHOTO_FOLDER = r"C:\Users\snevi\Downloads\Arctic Capstone Work\Arctic-Database-Interface_lab_run.py at main · snevitt2015_Arctic-Database-Interface_files"
 PREVIEW = 5      # 5 = quick check on 5 photos first (look at lab_out\debug); 0 = run everything
 
 import os
