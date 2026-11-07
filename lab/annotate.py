@@ -27,6 +27,11 @@ How it works (per photo):
 Everything measured goes to vessel_shadow_metrics.csv - the optical reference library.
 """
 import argparse
+import copy
+import hashlib
+import json
+import pickle
+import re
 import math
 import shutil
 from pathlib import Path
@@ -640,6 +645,56 @@ def preview_text(r, meta):
     return "\n".join(lines)
 
 
+# ------------------------------------------------------------------ skip sessions already measured
+# Results are cached PER SESSION in lab_out/cache, because the ring, lamp direction and scale are
+# worked out from a whole session. A session is measured again when any of these change:
+#   its photos (added / removed / edited), their sun / camera / rotation, the settings, or this code.
+CACHE_VERSION = 1
+
+
+def _code_fingerprint():
+    h = hashlib.sha1(str(CACHE_VERSION).encode())
+    for f in ("annotate.py", "settings.py"):
+        h.update((Path(__file__).parent / f).read_bytes())
+    return h.hexdigest()
+
+
+def _session_key(g, settings):
+    h = hashlib.sha1(_code_fingerprint().encode())
+    h.update(json.dumps(settings, sort_keys=True, default=str).encode())
+    for _, m in g.sort_values("image_path").iterrows():
+        p = Path(m["image_path"])
+        st = p.stat() if p.exists() else None
+        h.update(f"{p.name}|{st.st_size if st else 0}|{st.st_mtime_ns if st else 0}|"
+                 f"{m.get('sun_elevation')}|{m.get('camera_angle')}|{m.get('rotation')}|{m.get('vessel')}".encode())
+    return h.hexdigest()
+
+
+def _cache_file(cache_dir, sess):
+    return Path(cache_dir) / (re.sub(r"[^A-Za-z0-9_.-]+", "_", str(sess)) + ".pkl")
+
+
+def _load_cache(cache_dir, sess, key):
+    f = _cache_file(cache_dir, sess)
+    if not f.exists():
+        return None
+    try:
+        with open(f, "rb") as fh:
+            data = pickle.load(fh)          # our own file, written by _save_cache
+        return data if data.get("key") == key else None
+    except Exception:
+        return None
+
+
+def _save_cache(cache_dir, sess, key, data):
+    with open(_cache_file(cache_dir, sess), "wb") as fh:
+        pickle.dump({**data, "key": key}, fh)
+
+
+def _debug_name(meta):
+    return f"{Path(str(meta['session'])).name}_{Path(meta['image_path']).stem}.jpg".replace(" ", "_")
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--manifest", default="lab_out/manifest.csv")
@@ -648,6 +703,7 @@ def main(argv=None):
     ap.add_argument("--preview", type=int, default=0, help="only process N photos spread across sessions and print them")
     ap.add_argument("--debug-save-dir", help="save diagnostic overlays here")
     ap.add_argument("--ring", help="override ring: auto | none | x,y,rx,ry (fractions)")
+    ap.add_argument("--redo", action="store_true", help="measure every photo again (ignore lab_out/cache)")
     a = ap.parse_args(argv)
     st = S.load(a.settings)
     if a.ring:
@@ -661,30 +717,54 @@ def main(argv=None):
         dbg_dir.mkdir(parents=True, exist_ok=True)
     rows, labels, profiles = [], {}, {}
     full = pd.read_csv(a.manifest)
-    rings = {}
-    for sess, g in man.groupby("session"):
+    cache_dir = None if a.preview else Path(a.out) / "cache"
+    if cache_dir:
+        cache_dir.mkdir(parents=True, exist_ok=True)
+    done, reused = 0, []
+    for sess, g in man.groupby("session", sort=False):
         all_paths = full.loc[full["session"] == sess, "image_path"].tolist()
-        rings[sess] = session_ring(all_paths, st, g["camera_angle"].iloc[0])
-        print(f"ring for {sess}: {'found' if rings[sess] else 'per photo / none'}")
-    for i, (_, meta) in enumerate(man.iterrows(), 1):
-        meta = meta.to_dict()
-        try:
-            r, extra = process_image(meta["image_path"], meta, st, fixed_ring=rings.get(meta["session"]))
-        except Exception as e:                  # one bad photo must not stop the batch
-            r, extra = {"status": "REJECT", "reasons": f"error:{type(e).__name__}:{e}"}, None
-        prof = r.pop("_profile", None); r.pop("_f", None); r.pop("_look", None)
-        if prof is not None:
-            profiles[meta["image_path"]] = prof
-        rows.append({**meta, **r})
-        if extra:
-            labels[meta["image_path"]] = extra[0]
-            if dbg_dir:
-                cv2.imwrite(str(dbg_dir / f"{Path(str(meta['session'])).name}_{Path(meta['image_path']).stem}.jpg".replace(" ", "_")),
-                            draw_debug(extra[1], meta))
-        if a.preview:
-            print(preview_text(r, meta) + "\n")
-        elif i % 25 == 0:
-            print(f"  {i}/{len(man)} photos")
+        dbg_names = [_debug_name(m) for _, m in g.iterrows()] if dbg_dir else []
+        key = _session_key(g, st) if cache_dir else None
+        cached = None if (a.redo or not cache_dir) else _load_cache(cache_dir, sess, key)
+        if cached and dbg_dir and not all((dbg_dir / n).exists() for n in dbg_names if n in cached["has_debug"]):
+            cached = None                     # overlays were deleted - redo them
+        if cached:
+            rows += copy.deepcopy(cached["rows"]); labels.update(cached["labels"]); profiles.update(cached["profiles"])
+            reused.append(sess)
+            done += len(g)
+            print(f"{sess}: already measured, reusing ({len(g)} photos)")
+            continue
+        ring = session_ring(all_paths, st, g["camera_angle"].iloc[0])
+        print(f"ring for {sess}: {'found' if ring else 'per photo / none'}")
+        s_rows, s_labels, s_profiles, has_debug = [], {}, {}, []
+        for _, meta in g.iterrows():
+            meta = meta.to_dict()
+            try:
+                r, extra = process_image(meta["image_path"], meta, st, fixed_ring=ring)
+            except Exception as e:                  # one bad photo must not stop the batch
+                r, extra = {"status": "REJECT", "reasons": f"error:{type(e).__name__}:{e}"}, None
+            prof = r.pop("_profile", None); r.pop("_f", None); r.pop("_look", None)
+            if prof is not None:
+                s_profiles[meta["image_path"]] = prof
+            s_rows.append({**meta, **r})
+            if extra:
+                s_labels[meta["image_path"]] = extra[0]
+                if dbg_dir:
+                    name = _debug_name(meta)
+                    cv2.imwrite(str(dbg_dir / name), draw_debug(extra[1], meta))
+                    has_debug.append(name)
+            if a.preview:
+                print(preview_text(r, meta) + "\n")
+            done += 1
+            if not a.preview and done % 25 == 0:
+                print(f"  {done}/{len(man)} photos")
+        if cache_dir:
+            _save_cache(cache_dir, sess, key, {"rows": copy.deepcopy(s_rows), "labels": s_labels,
+                                               "profiles": s_profiles, "has_debug": has_debug})
+        rows += s_rows; labels.update(s_labels); profiles.update(s_profiles)
+    if reused:
+        print(f"Reused {len(reused)} session(s) measured before; measured {len(man.groupby('session')) - len(reused)} new/changed."
+              " (Use --redo to measure everything again.)")
     rows = apply_session_direction(rows, profiles, st)
     df = pd.DataFrame(rows)
     out = Path(a.out); out.mkdir(parents=True, exist_ok=True)

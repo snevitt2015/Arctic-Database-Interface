@@ -38,6 +38,12 @@ python -m lab.run "C:\Users\you\Downloads\Lab Photos" --preview 5
 python -m lab.run "C:\Users\you\Downloads\Lab Photos"
 ```
 
+**Re-running is quick.** Sessions measured before are reused from `lab_out\cache`, so only new folders take time. A session is measured again automatically if you add, remove or edit a photo in it, change `lab/settings.py`, or download new code. To force everything again, add `--redo`:
+
+```
+python -m lab.run "C:\Users\you\Downloads\PhotosFolder" --redo
+```
+
 ### Reading the cross-cue test (`lab.crosscue`)
 
 **A. Self-test (`crosscue_selftest.csv`).** Every 5th turntable position is held back. Each held-back photo is scaled up to real size and treated as a satellite sighting, with Sentinel-2 (10 m) and very-high-res (0.5 m) measurement noise added. It is then scored against four hypotheses: the right ship, 20% shorter, 20% longer, and a half-height ship.

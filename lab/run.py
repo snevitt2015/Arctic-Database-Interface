@@ -20,7 +20,7 @@ from lab import ingest, annotate, validate, reference, crosscue
 REPO = Path(__file__).resolve().parents[1]
 
 
-def run(photo_folder, out=None, preview=0, debug=True, settings=None):
+def run(photo_folder, out=None, preview=0, debug=True, settings=None, redo=False):
     folder = Path(str(photo_folder).strip().strip('"'))
     if not folder.is_dir():
         print(f"Can't find the folder: {folder}\nCopy the path from File Explorer's address bar.")
@@ -45,8 +45,8 @@ def run(photo_folder, out=None, preview=0, debug=True, settings=None):
               "look right, run again without --preview for the full set.")
         return 0
 
-    step("1. Measuring hull and shadow in every photo (Module 1) - about 1-2 s per photo")
-    annotate.main(["--manifest", manifest, "--out", str(out)]
+    step("1. Measuring hull and shadow (Module 1) - about 1-2 s per NEW photo; sessions done before are reused")
+    annotate.main(["--manifest", manifest, "--out", str(out)] + (["--redo"] if redo else [])
                   + (["--debug-save-dir", str(out / "debug")] if debug else []) + s)
 
     step("2. Checking against sun geometry (Module 2)")
@@ -76,8 +76,9 @@ def main(argv=None):
     ap.add_argument("--preview", type=int, default=0, help="only measure N photos and save their overlays")
     ap.add_argument("--no-debug", action="store_true", help="don't save an overlay for every photo")
     ap.add_argument("--settings", default=None)
+    ap.add_argument("--redo", action="store_true", help="measure every photo again, even ones done before")
     a = ap.parse_args(argv)
-    return run(a.folder, a.out, a.preview, not a.no_debug, a.settings)
+    return run(a.folder, a.out, a.preview, not a.no_debug, a.settings, a.redo)
 
 
 if __name__ == "__main__":
