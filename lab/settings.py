@@ -12,10 +12,10 @@ DEFAULTS = {
     # ---- the model(s): one entry per 3D print. Key = vessel name used in folders/CSV.
     "vessels": {
         "MossTypeLNG": {
-            "scale_denominator": 700,      # 1:700 print - CHANGE to the real scale
-            "model_length_mm": 410.0,      # hull length of the print, measured with calipers - CHANGE
-            "model_beam_mm": 70.0,         # hull width of the print - CHANGE
-            "shadow_height_mm": 60.0,      # height of the part whose shadow tip you measure
+"scale_denominator": 700,      # 1:700 print - CHANGE to the real scale
+"model_length_mm": 410.0,      # hull length of the print - CHANGE
+"model_beam_mm": 70.0,         # hull width of the print - CHANGE
+"shadow_height_mm": 60.0,      # height of the tallest tank above the board - CHANGE
                                            # (top of the tallest tank/superstructure above the board) - CHANGE
             "real_imo": "",                # IMO of the real ship this model represents, if any
         },
