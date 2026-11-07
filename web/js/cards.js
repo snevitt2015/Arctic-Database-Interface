@@ -244,7 +244,7 @@ export function routePopup(p) {
 }
 
 // ---------------------------------------------------------------- ping (cue) card
-const KIND_LABEL = { ais_off: "AIS switched off", spoofing: "Possible spoofing", silent: "No recent record", identity: "Identity change" };
+const KIND_LABEL = { ais_off: "AIS switched off", spoofing: "Possible spoofing", silent: "No recent record", identity: "Identity change", track_anomaly: "Off its expected track" };
 export function cueCard(c, store) {
   const sar = c.scenes.filter((s) => s.kind === "SAR"), opt = c.scenes.filter((s) => s.kind === "Optical");
   const sceneRow = (s) => `<tr><td>${fmtTime(s.t).replace(" UTC", "")}</td><td>${esc(s.satellite)}</td>
