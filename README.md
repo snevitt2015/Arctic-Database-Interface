@@ -149,6 +149,17 @@ Results: `data/output_cues.csv`, `output_scenes.csv`, `output_detections.csv`, c
 **Licensing.** Sentinel data is free and open: credit "Contains modified Copernicus Sentinel data". **GEGD / Maxar imagery is
 licensed for US Government purposes (USG-Plus)** and must not be added to this public repository or website.
 
+## Lab reference: 3D-print photos → SAR ↔ optical signatures
+
+`lab/` turns the turntable photos of the 3D-printed ships into the reference that satellite detections are compared against.
+It runs on your own computer; photos and outputs stay there (`lab_out/` isn't uploaded).
+
+    python -m lab.ingest --images "D:/Lab Photos"     # sun / camera / rotation from folder names
+    python -m lab.annotate --preview 5 --debug-save-dir lab_out/debug
+    python -m lab.annotate && python -m lab.validate && python -m lab.reference build
+
+Step by step guide, settings to measure on the print, and what every number means: **[lab/README.md](lab/README.md)**.
+
 ## How the algorithm works
 
 ```

@@ -14,3 +14,8 @@ venv/
 # They stay on your computer; only the folder itself is kept in the repo.
 data/imports/*
 !data/imports/.gitkeep
+
+# Lab outputs (photos, overlays, YOLO copies, metrics) stay on your computer
+lab_out/
+runs/
+*.pt
