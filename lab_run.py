@@ -8,7 +8,7 @@ The folder is the one that HOLDS your session folders, e.g.
 Tip: in File Explorer, click the address bar, copy, and paste between the quotes.
 Results go to the lab_out folder next to this file. Your photos are never changed.
 """
-PHOTO_FOLDER = r"C:\Users\you\Downloads\Lab Photos"   # <- paste your folder here, keep the r"..."
+PHOTO_FOLDER = r"C:\Users\snevi\Downloads\Arctic Capstone Work\Lab Photos"
 PREVIEW = 5      # 5 = quick check on 5 photos first (look at lab_out\debug); 0 = run everything
 
 import os
