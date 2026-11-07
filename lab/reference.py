@@ -21,7 +21,8 @@ Use from Python
     from lab import reference as R
     ref = R.load("lab_out/optical_reference.csv")
     R.expected_shadow(ref, "MossTypeLNG", ship_length_m=290, sun_elev=18)        # optical
-    R.shadow_score(ref, "MossTypeLNG", length_m=288, shadow_m=150, sun_elev=18)  # 0-1 likelihood
+    R.shadow_score(ref, "MossTypeLNG", length_m=288, shadow_m=150, sun_elev=18,      # 0-1 likelihood
+                   shadow_vs_hull_deg=R.relative_angle(ship_heading, sun_azimuth))
       (shadow_m = how far the shadow sticks out past the hull, measured the same way as the lab)
     R.sar_expectation(ref, "MossTypeLNG", ship_length_m=290, incidence_deg=38)   # SAR
 
@@ -58,7 +59,12 @@ def build(validated: pd.DataFrame, heights: pd.DataFrame = None, settings: dict 
         L, B = v["model_length_mm"], v["model_beam_mm"]
         reach = r.get("reach_ground_mm")
         sun = float(r["sun_elevation"])
-        ang = abs(((r.get("shadow_dir_img_deg", np.nan) - r.get("vessel_axis_deg", np.nan)) + 90) % 180 - 90)
+        # angle between the lamp's shadow direction and the hull axis, on the board (0 = shadow
+        # runs along the hull, 90 = straight out to the side). Satellites give the same angle from
+        # the sun azimuth and the ship's heading - see relative_angle().
+        lamp = r.get("session_shadow_dir_deg", np.nan)
+        lamp = r.get("shadow_dir_deg", np.nan) if lamp != lamp else lamp
+        ang = abs(((lamp - r.get("hull_axis_ground_deg", np.nan)) + 90) % 180 - 90)
         rows.append({
             "vessel": r["vessel"], "sun_elevation": sun, "camera_angle": r["camera_angle"],
             "off_nadir": S.off_nadir(settings, r["camera_angle"]), "rotation": r["rotation"],
@@ -94,7 +100,19 @@ def load(path="lab_out/optical_reference.csv") -> pd.DataFrame:
 
 
 # ------------------------------------------------------------------ lookups
-def vessel_geometry(ref: pd.DataFrame, vessel: str, off_nadir: float = None, settings: dict = None) -> dict:
+def cot_of(df):
+    return 1 / np.tan(np.radians(df["sun_elevation"].astype(float)))
+
+
+def relative_angle(ship_heading_deg, sun_azimuth_deg):
+    """Satellite version of the lab's shadow_vs_hull_deg: the angle (0-90) between the ship's
+    axis and the direction its shadow falls (opposite the sun)."""
+    shadow_az = (sun_azimuth_deg + 180) % 360
+    return abs(((shadow_az - ship_heading_deg) + 90) % 180 - 90)
+
+
+def vessel_geometry(ref: pd.DataFrame, vessel: str, off_nadir: float = None, settings: dict = None,
+                    shadow_vs_hull_deg: float = None) -> dict:
     """Scale-free shadow model for one ship type, from the lab:
         overhang / length = height_ratio * cot(sun) + offset_ratio      (+- spread_ratio)
     height_ratio is the physical effective height / length (slope of Module 2's fit when there
@@ -110,29 +128,41 @@ def vessel_geometry(ref: pd.DataFrame, vessel: str, off_nadir: float = None, set
         if len(nearest) >= 5:
             r = nearest
     L = S.vessel(settings, vessel)["model_length_mm"]
-    cot = 1 / np.tan(np.radians(r["sun_elevation"].astype(float)))
+    full = r
     fitted = r["fitted_height_mm"].dropna() if "fitted_height_mm" in r else pd.Series(dtype=float)
     if len(fitted):
         h, off, source = float(fitted.median()), float(r["fitted_offset_mm"].dropna().median()), "fit"
     else:
         h, off, source = float(r["height_mm"].median()), 0.0, "photos"
-    resid = (r["reach_mm"] - (h * cot + off)) / L
+    resid = (full["reach_mm"] - (h * cot_of(full) + off)) / L
+    correction, used = 0.0, full
+    if shadow_vs_hull_deg is not None and "shadow_vs_hull_deg" in full:
+        # the shadow sticks out further when it falls across the hull than along it: use the lab
+        # photos with the same sun-vs-hull angle (+-15 deg) to correct the line and tighten the spread
+        near = (full["shadow_vs_hull_deg"] - abs(shadow_vs_hull_deg)).abs() <= 15
+        if near.sum() >= 4:
+            used = full[near]
+            correction = float(resid[near].median())
+            resid = resid[near]
     spread = float((resid - resid.median()).abs().median() * 1.4826) or 0.02
-    return {"available": True, "height_ratio": h / L, "offset_ratio": off / L, "spread_ratio": spread,
-            "source": source, "photos": len(r),
+    return {"available": True, "height_ratio": h / L, "offset_ratio": off / L + correction, "spread_ratio": spread,
+            "source": source + (" + angle" if used is not full else ""), "photos": len(used),
             "sun_range": (float(r["sun_elevation"].min()), float(r["sun_elevation"].max())),
             "off_nadir_range": (float(r["off_nadir"].min()), float(r["off_nadir"].max()))}
 
 
-def expected_shadow(ref, vessel, ship_length_m, sun_elev, off_nadir=None) -> dict:
+def expected_shadow(ref, vessel, ship_length_m, sun_elev, off_nadir=None, height_scale=1.0,
+                    shadow_vs_hull_deg=None) -> dict:
     """What an optical satellite should see for this ship type: effective height, and how far
-    the shadow sticks out past the hull (metres) at this sun elevation."""
-    g = vessel_geometry(ref, vessel, off_nadir)
+    the shadow sticks out past the hull (metres) at this sun elevation.
+    height_scale < 1 models a lower ship of the same length (e.g. 0.5 = half as tall)."""
+    g = vessel_geometry(ref, vessel, off_nadir, shadow_vs_hull_deg=shadow_vs_hull_deg)
     if not g["available"]:
         return g
     cot = 1 / math.tan(math.radians(sun_elev))
-    over = max(0.0, (g["height_ratio"] * cot + g["offset_ratio"]) * ship_length_m)
-    return {"available": True, "height_m": round(g["height_ratio"] * ship_length_m, 1),
+    hr = g["height_ratio"] * height_scale
+    over = max(0.0, (hr * cot + g["offset_ratio"]) * ship_length_m)
+    return {"available": True, "height_m": round(hr * ship_length_m, 1),
             "shadow_overhang_m": round(over, 1), "shadow_sigma_m": round(g["spread_ratio"] * ship_length_m, 1),
             "model_source": g["source"],
             "in_lab_sun_range": bool(g["sun_range"][0] <= sun_elev <= g["sun_range"][1]),
@@ -140,13 +170,14 @@ def expected_shadow(ref, vessel, ship_length_m, sun_elev, off_nadir=None) -> dic
             bool(g["off_nadir_range"][0] - 5 <= off_nadir <= g["off_nadir_range"][1] + 5)}
 
 
-def shadow_score(ref, vessel, length_m, shadow_m, sun_elev, shadow_err_m=10.0, off_nadir=None) -> dict:
+def shadow_score(ref, vessel, length_m, shadow_m, sun_elev, shadow_err_m=10.0, off_nadir=None,
+                 height_scale=1.0, shadow_vs_hull_deg=None) -> dict:
     """0-1 likelihood that a detection with this length and shadow overhang (past the hull, m)
     is this ship type. Same bell shape as tracker.match: 1 = perfect, ~0.6 at one sigma,
     ~0.1 at two. Multiply it into match.score_candidate's score as p_shadow."""
     if not sun_elev or sun_elev <= 0:
         return {"p_shadow": None, "reason": "sun below horizon"}
-    e = expected_shadow(ref, vessel, length_m, sun_elev, off_nadir)
+    e = expected_shadow(ref, vessel, length_m, sun_elev, off_nadir, height_scale, shadow_vs_hull_deg)
     if not e["available"]:
         return {"p_shadow": None, "reason": "no lab reference for this vessel"}
     # a 0.5 deg error in the sun elevation also moves the expected shadow

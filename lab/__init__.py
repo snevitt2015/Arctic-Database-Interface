@@ -8,6 +8,8 @@ compared against.
   lab/validate.py      check measurements against sun geometry                      (Module 2)
   lab/train.py         train / run YOLO-OBB and export the same measurements        (Module 3)
   lab/reference.py     build the SAR <-> optical reference table and look things up
+  lab/crosscue.py      test the SAR <-> optical cross-cue (self-test + the daily pings)
+  lab/run.py           all of the above in one go:  python -m lab.run "C:/path/to/photos"
   lab/settings.py      model scale, heights, camera convention, ring - EDIT THIS
   lab/synthetic.py     fake turntable photos for testing
 

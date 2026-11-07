@@ -96,3 +96,19 @@ def test_sar_expectation():
     assert abs(sar["layover_m"] - sar["radar_shadow_m"]) < 0.1      # equal at 45 deg incidence
     assert sar["in_sentinel1_iw"]
     assert R.camera_for_incidence(38) == 52
+
+
+def test_relative_angle():
+    assert R.relative_angle(0, 180) == 0          # sun behind the bow: shadow straight along the hull
+    assert R.relative_angle(0, 90) == 90          # sun abeam: shadow straight out to the side
+    assert R.relative_angle(45, 0) == 45
+
+
+def test_ingest_skips_our_outputs(tmp_path):
+    from lab.ingest import from_folders
+    for rel in ["11-3-26Sun25Camera25/IMG_0001.JPG", "lab_out/debug/x.jpg"]:
+        p = tmp_path / rel
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_bytes(b"")
+    df = from_folders(tmp_path, "MossTypeLNG", S.load())
+    assert len(df) == 1 and df.iloc[0]["sun_elevation"] == 25

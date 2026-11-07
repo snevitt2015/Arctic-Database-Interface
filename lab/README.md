@@ -14,9 +14,46 @@ photos ─► 0 ingest ─► 1 annotate ─► 2 validate ─► reference ─�
 | 1 annotate | `python -m lab.annotate` | `vessel_shadow_metrics.csv`, plus a YOLO-OBB dataset and debug overlays |
 | 2 validate | `python -m lab.validate` | `validated_metrics.csv`, `session_summary.csv` and `height_fit.csv`: physics checks and the effective tank height |
 | reference | `python -m lab.reference build` | `optical_reference.csv` and `coverage.csv`: scale-free signatures, plus which angles are still unshot |
+| cross-cue | `python -m lab.crosscue` | `crosscue_selftest.csv` and `crosscue_scenes.csv` (see below) |
 | 3 train | `python -m lab.train train` / `predict` | A trained detector and `predicted_metrics.csv` in the same column format |
 
 Everything is written to `lab_out/`, which is not uploaded to GitHub. The photos stay on your computer.
+
+## The quick way: one command (or F5 in IDLE)
+
+Point it at the folder that **holds** your session folders. It reads the folder and file names, runs every step below, then runs the cross-cue test.
+
+**In IDLE:**
+
+1. Open `lab_run.py` (in the project folder).
+2. Paste your folder path into `PHOTO_FOLDER`.
+3. Press **F5**.
+
+`PREVIEW = 5` measures just 5 photos so you can check the overlays in `lab_out\debug`. Set it to `0` to run everything.
+
+**From a terminal:**
+
+```
+python -m lab.run "C:\Users\you\Downloads\Lab Photos" --preview 5
+python -m lab.run "C:\Users\you\Downloads\Lab Photos"
+```
+
+### Reading the cross-cue test (`lab.crosscue`)
+
+**A. Self-test (`crosscue_selftest.csv`).** Every 5th turntable position is held back. Each held-back photo is scaled up to real size and treated as a satellite sighting, with Sentinel-2 (10 m) and very-high-res (0.5 m) measurement noise added. It is then scored against four hypotheses: the right ship, 20% shorter, 20% longer, and a half-height ship.
+
+- `height_told`: how often the shadow alone tells a Moss carrier from a lower ship.
+- `hit_rate`: how often shadow plus measured length pick the right ship.
+
+Expect both to be best at low sun, where shadows are long, and weakest at high sun.
+
+**B. Scene cross-cue (`crosscue_scenes.csv`).** For every ping in the daily run (AIS off, spoofing, silent), it lists:
+
+- the SAR and optical images found, and the closest SAR + optical pair in time;
+- what the lab predicts the ship should look like: the shadow length at that image's sun angle, and SAR layover and radar shadow;
+- which lab session to compare against, marked **NOT SHOT YET** if you haven't photographed that angle.
+
+The lab model is the Moss LNG print, so only LNG tankers get numbers. Put real ship lengths in `data/vessel_dimensions.csv` (columns `imo,name,length_m,beam_m,containment`). Until then, LNG tankers are assumed to be 290 m. Run `git pull` first so you have the latest daily pings and images.
 
 ## One-time setup (Windows, in the project folder)
 

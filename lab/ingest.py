@@ -62,7 +62,9 @@ def parse_path(path: Path, root: Path) -> dict:
 
 
 def from_folders(root: Path, vessel_name: str, settings: dict) -> pd.DataFrame:
-    files = sorted(p for p in root.rglob("*") if p.suffix.lower() in IMAGE_EXT and not p.name.startswith("."))
+    skip = {"lab_out", "debug", "yolo", "runs"}          # our own outputs, if saved inside the photo folder
+    files = sorted(p for p in root.rglob("*") if p.suffix.lower() in IMAGE_EXT and not p.name.startswith(".")
+                   and not skip & {part.lower() for part in p.relative_to(root).parts[:-1]})
     rows = []
     for p in files:
         meta = parse_path(p, root)

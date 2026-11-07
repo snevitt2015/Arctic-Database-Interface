@@ -404,6 +404,8 @@ def measure(img_bgr, vessel, shadow, u, settings, meta, scale_back):
     ax = vec[:, -1]
     look_axis = np.array([0.0, 1.0]) if look in ("up", "down") else np.array([1.0, 0.0])
     out["scale_quality"] = float(abs(ax[0] * look_axis[1] - ax[1] * look_axis[0]))
+    # hull axis on the board (0-180 deg, 0 = image up, clockwise) - same frame as shadow_dir_deg
+    out["hull_axis_ground_deg"] = round((math.degrees(math.atan2(ax[0], -ax[1])) + 360) % 180, 1)
     if px_per_mm:
         reach_mm = reach_ground_px * step ** 0 / px_per_mm
         sun = meta.get("sun_elevation")
