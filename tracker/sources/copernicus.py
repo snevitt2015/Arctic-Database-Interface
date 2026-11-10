@@ -150,6 +150,35 @@ def search_cue(cue: dict, kinds=("SAR", "Optical"), pad_hours=12, log=print) -> 
     return rows
 
 
+def acquisition_key(scene_id: str) -> str:
+    """The part of a Sentinel-1 product name that identifies the acquisition itself.
+    The catalogue lists most Sentinel-1 scenes twice: a standard product (..._2813.SAFE) and a
+    Cloud-Optimised GeoTIFF copy (..._83B4_COG.SAFE). Both have the same mission, mode, product,
+    start/stop time, orbit and datatake - only the last 4-character product id and the _COG tag
+    differ. Sentinel-2 names are returned unchanged."""
+    name = str(scene_id).replace(".SAFE", "")
+    parts = name.split("_")
+    if name.startswith("S1") and len(parts) >= 8:
+        return "_".join(parts[:8])
+    return name
+
+
+def dedupe_scenes(scenes: pd.DataFrame) -> pd.DataFrame:
+    """One row per image per cue. Keeps the standard product and records the COG copy's link."""
+    if scenes is None or scenes.empty or "scene_id" not in scenes:
+        return scenes
+    df = scenes.copy()
+    df["_key"] = df["scene_id"].map(acquisition_key)
+    df["_cog"] = df["scene_id"].astype(str).str.contains("_COG")
+    cog = (df[df["_cog"]].drop_duplicates(["cue_id", "_key"])
+           .set_index(["cue_id", "_key"])["link"].rename("cog_link"))
+    df = (df.sort_values("_cog", kind="stable")              # standard product first
+            .drop_duplicates(["cue_id", "_key"], keep="first"))
+    df = df.drop(columns=[c for c in ("cog_link",) if c in df]).join(cog, on=["cue_id", "_key"])
+    df.loc[df["_cog"], "cog_link"] = df.loc[df["_cog"], "link"]   # only a COG copy was listed
+    return df.drop(columns=["_key", "_cog"]).sort_index().reset_index(drop=True)
+
+
 def search_all(cues: pd.DataFrame, previous: pd.DataFrame = None, log=print, max_cues=30) -> pd.DataFrame:
     """Search scenes for each cue. Cues whose window ended more than 10 days ago and were
     already searched are not searched again (the archive for them won't change much)."""
@@ -174,4 +203,4 @@ def search_all(cues: pd.DataFrame, previous: pd.DataFrame = None, log=print, max
             keep = keep[keep["cue_id"] != cue["cue_id"]]       # replaced by the fresh search
     new = pd.DataFrame(rows)
     out = pd.concat([keep, new], ignore_index=True) if not keep.empty else new
-    return out
+    return dedupe_scenes(out)

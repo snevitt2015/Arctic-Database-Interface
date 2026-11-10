@@ -291,6 +291,22 @@ def test_copernicus_results_become_scene_rows(monkeypatch):
     assert "OData.CSC.Intersects" in calls[0]["$filter"] and "SENTINEL-1" in calls[0]["$filter"]
 
 
+def test_duplicate_sentinel1_products_become_one_scene():
+    from tracker.sources.copernicus import dedupe_scenes, acquisition_key
+    base = "S1C_EW_GRDM_1SDV_20260820T191637_20260820T191745_009083_01207D"
+    rows = pd.DataFrame([
+        {"cue_id": "a", "scene_id": base + "_83B4_COG.SAFE", "link": "L-cog"},
+        {"cue_id": "a", "scene_id": base + "_2813.SAFE", "link": "L-std"},
+        {"cue_id": "b", "scene_id": base + "_2813.SAFE", "link": "L-std"},       # other cue: kept
+        {"cue_id": "a", "scene_id": "S2B_MSIL2A_20260725T030519_N0512_R075_T49QCD_20260725T065804.SAFE", "link": "L-s2"},
+    ])
+    assert acquisition_key(base + "_83B4_COG.SAFE") == acquisition_key(base + "_2813.SAFE") == base
+    out = dedupe_scenes(rows)
+    assert len(out) == 3
+    a = out[(out.cue_id == "a") & out.scene_id.str.startswith("S1C")].iloc[0]
+    assert a.scene_id.endswith("_2813.SAFE") and a.link == "L-std" and a.cog_link == "L-cog"
+
+
 def test_detects_and_measures_a_ship_in_a_radar_chip():
     from tracker.sar_detect import synthetic_chip, detect_ships
     d = detect_ships(synthetic_chip(250, 45, 30, pixel_m=10), 10, bounds=(32.9, 68.95, 33.1, 69.05))
