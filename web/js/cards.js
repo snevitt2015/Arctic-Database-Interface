@@ -19,6 +19,14 @@ const ago = (t, ref) => { const d = Math.round((ref - t) / 864e5); return d <= 0
 
 // ---------------------------------------------------------------- ship card
 export const VESSEL_SECTIONS = [
+  // Warning signs (focus-mode score, computed in data.js computeRisk)
+  ({ v, store }) => {
+    const r = store.risk?.[v.name];
+    if (!r?.reasons.length) return "";
+    return section(`Warning signs · score ${r.score}`, `<div class="chips">${r.reasons.map((x) =>
+      `<span class="chip ${x.sev === "red" ? "red" : "amber"}">${esc(x.label)}</span>`).join("")}</div>
+      <p class="hint">Leads to verify, not conclusions. Recent = last 90 days of data.</p>`);
+  },
   // Identity from the Excel sheet
   ({ v }) => section("Identity", `<dl>
     ${row("IMO", esc(v.imo) || "<span class='muted'>missing</span>")}

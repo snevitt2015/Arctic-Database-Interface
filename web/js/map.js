@@ -23,6 +23,13 @@ let overlayDate = null;
 const CAT_COLOR = Object.fromEntries(SHIP_CATEGORIES.map((c) => [c.id, c.color]));
 const catColorExpr = ["match", ["get", "cat"], ...SHIP_CATEGORIES.flatMap((c) => [c.id, c.color]), "#94a3b8"];
 const H = 3600e3;
+const FOCUS_EVENTS = ["ais_off", "ais_on", "encounter"];
+const FOCUS_EVENT_COLOR = ["case", ["get", "jump"], "#ef4444",
+  ["match", ["get", "ev"], "ais_off", "#ef4444", "ais_on", "#22c55e", "encounter", "#f59e0b", "#cbd5e1"]];
+// sea routes fade into the background in focus mode: [layer, paint property, normal, focus]
+const ROUTE_PAINT = VECTOR_LAYERS.flatMap((v) => [
+  [`vec-${v.id}-solid`, "line-opacity", 0.9, 0.3], [`vec-${v.id}-dashed`, "line-opacity", 0.85, 0.25],
+  [`vec-${v.id}-casing`, "line-opacity", 0.55, 0.15]]);
 
 // ------------------------------------------------------------------ setup
 export function createMap(container) {
@@ -170,13 +177,21 @@ function addLayers() {
 }
 
 // ------------------------------------------------------------------ filtering (fast: no data reload)
-export function applyFilter({ start, end, vessels, eventTypes, dataLayers, selected }) {
+export function applyFilter({ start, end, vessels, eventTypes, dataLayers, selected, focus }) {
   const shipIn = ["in", ["get", "vessel"], ["literal", [...vessels]]];
   const inWindow = ["all", [">=", ["get", "t1"], start], ["<=", ["get", "t0"], end]];
+  const isSel = ["==", ["get", "vessel"], selected || ""];
+  // Focus mode: only warning signs for every ship; the full history only for the selected ship
+  const warning = ["any", ["get", "jump"], ["in", ["get", "ev"], ["literal", FOCUS_EVENTS]]];
   map.setFilter("events", ["all", shipIn, [">=", ["get", "t"], start], ["<=", ["get", "t"], end],
-    ["in", ["get", "ev"], ["literal", [...eventTypes]]]]);
-  for (const id of ["tracks", "tracks-casing", "darkgaps", "sequence"]) map.setFilter(id, ["all", shipIn, inWindow]);
-  for (const id of ["pred-lines", "pred-areas"]) map.setFilter(id, shipIn);
+    ["in", ["get", "ev"], ["literal", [...eventTypes]]], ...(focus ? [["any", warning, isSel]] : [])]);
+  for (const id of ["tracks", "tracks-casing", "sequence"]) map.setFilter(id, ["all", shipIn, inWindow, ...(focus ? [isSel] : [])]);
+  map.setFilter("darkgaps", ["all", shipIn, inWindow]);
+  // predictions: in focus mode only the selected ship's short-range estimate (the 72 h Kalman circle is ~1,800 km wide)
+  for (const id of ["pred-lines", "pred-areas"]) map.setFilter(id, focus ? ["all", isSel, ["!=", ["get", "method"], "kalman"]] : shipIn);
+  map.setPaintProperty("events", "circle-color", focus ? FOCUS_EVENT_COLOR : catColorExpr);
+  for (const [id, prop, full, quiet] of ROUTE_PAINT) if (map.getLayer(id)) map.setPaintProperty(id, prop, focus ? quiet : full);
+  Object.values(vectorLabels).flat().forEach((l) => l.marker.getElement().classList.toggle("focus-hidden", !!focus));
 
   const vis = (id, on) => map.setLayoutProperty(id, "visibility", on ? "visible" : "none");
   vis("tracks", dataLayers.has("tracks")); vis("tracks-casing", dataLayers.has("tracks"));
@@ -207,7 +222,7 @@ function shipSvg(color, course) {
     <path d="M12 6 L12 15" stroke="#0b1220" stroke-opacity=".5" stroke-width="1.2"/></svg>`;
 }
 
-export function setLatestShips(latest, selected) {
+export function setLatestShips(latest, selected, focus = false, risk = {}) {
   const keep = new Set(latest.map((e) => e.vessel));
   for (const [name, m] of shipMarkers) if (!keep.has(name)) { m.remove(); shipMarkers.delete(name); }
   for (const e of latest) {
@@ -223,7 +238,11 @@ export function setLatestShips(latest, selected) {
     const el = m.getElement();
     el.classList.toggle("selected", selected === e.vessel);
     el.classList.toggle("dimmed", !!selected && selected !== e.vessel);
-    el.innerHTML = `<span class="icon">${shipSvg(CAT_COLOR[e.cat], e.course)}</span><span class="label">${e.vessel}</span>`;
+    const r = risk[e.vessel];
+    for (const lvl of ["high", "watch", "quiet"]) el.classList.toggle("risk-" + lvl, !!focus && r?.level === lvl);
+    const color = focus && r ? r.color : CAT_COLOR[e.cat];
+    el.innerHTML = `<span class="icon">${shipSvg(color, e.course)}</span><span class="label">${e.vessel}</span>`;
+    el.style.zIndex = selected === e.vessel ? 5 : focus && r ? { high: 3, watch: 2, quiet: 1 }[r.level] : "";
     el.title = `${e.vessel} - last seen in this time window`;
   }
 }
@@ -310,7 +329,7 @@ export function setCues(cues) {
   const feats = cues.map((c) => circlePolygon(c.lon, c.lat, Math.max(c.radius, 1),
     { cue_id: c.cue_id, vessel: c.vessel, priority: c.priority, kind: c.kind, t0: c.t, t1: c.tEnd }));
   const dets = cues.flatMap((c) => c.detections.filter((d) => d.lat != null).map((d) =>
-    pt(d.lon, d.lat, { cue_id: c.cue_id, n: +d.detection, dark: d.dark, score: d.score ?? 0 })));
+    pt(d.lon, d.lat, { cue_id: c.cue_id, vessel: c.vessel, n: +d.detection, dark: d.dark, score: d.score ?? 0 })));
   const add = (id, data) => (map.getSource(id) ? map.getSource(id).setData(data) : map.addSource(id, { type: "geojson", data }));
   add("cues", fc(feats)); add("scenes", fc([])); add("detections", fc(dets));
   if (map.getLayer("cues-fill")) return;
@@ -337,8 +356,13 @@ export function showScenes(scenes) {
     geometry: { type: "Polygon", coordinates: [s.footprint] }, properties: { kind: s.kind, id: s.scene_id } }));
   map.getSource("scenes")?.setData(fc(feats));
 }
-export function setCueVisibility(on, selectedCue) {
-  for (const id of ["cues-fill", "cues-line", "detections"]) if (map.getLayer(id)) map.setLayoutProperty(id, "visibility", on ? "visible" : "none");
+export function setCueVisibility(on, selectedCue, onlyShip = undefined) {
+  // onlyShip: focus mode shows pings for the selected ship only (null = none selected -> no pings)
+  const f = onlyShip === undefined ? null : ["==", ["get", "vessel"], onlyShip || ""];
+  for (const id of ["cues-fill", "cues-line", "detections"]) if (map.getLayer(id)) {
+    map.setLayoutProperty(id, "visibility", on ? "visible" : "none");
+    map.setFilter(id, f && selectedCue ? ["==", ["get", "cue_id"], selectedCue] : f);
+  }
   if (map.getLayer("cues-line")) map.setPaintProperty("cues-line", "line-width", selectedCue ? ["case", ["==", ["get", "cue_id"], selectedCue], 3.5, 1.2] : 1.8);
 }
 

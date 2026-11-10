@@ -43,10 +43,14 @@
       <svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M10 2a8 8 0 0 1 6.3 12.9l5.4 5.4-1.4 1.4-5.4-5.4A8 8 0 1 1 10 2zm0 2a6 6 0 1 0 0 12 6 6 0 0 0 0-12z"/></svg>
       <input id="search" type="search" placeholder="Search ship, IMO, MMSI or former name…" autocomplete="off">
     </div>
+    <button id="focus-toggle" class="focus-toggle" title="Focus: show only warning signs (AIS off, impossible moves, identity changes, encounters). Click for the full view." aria-pressed="true">
+      <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="3" fill="currentColor"/></svg>
+      <span class="on-label">Focus</span><span class="off-label">Full view</span>
+    </button>
     <div class="stats">
       <div class="red ping-stat" id="pings-stat" title="Pings: where to look in satellite imagery"><b id="s-pings">–</b><span>Pings <i id="s-pings-new"></i></span></div>
-      <div><b id="s-events">–</b><span>Records</span></div>
-      <div><b id="s-ships">–</b><span>Ships</span></div>
+      <div class="busy-stat"><b id="s-events">–</b><span>Records</span></div>
+      <div class="busy-stat"><b id="s-ships">–</b><span>Ships</span></div>
       <div class="red"><b id="s-dark">–</b><span>AIS off</span></div>
       <div class="red"><b id="s-jumps">–</b><span>Impossible moves</span></div>
       <div class="amber"><b id="s-ids">–</b><span>Renamed ships</span></div>

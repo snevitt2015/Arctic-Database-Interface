@@ -24,6 +24,29 @@ const state = {
   fleetType: "", showAllTypes: false,
   vectorsOn: Object.fromEntries(VECTOR_LAYERS.map((v) => [v.id, new Set(v.on || [])])), vectorData: {},
 };
+// Focus mode (default on): a quiet map where only warning signs stand out. The choice is remembered in this browser.
+const FOCUS_LAYERS = ["tracks", "darkgaps", "predictions", "ports", "cues"];   // tracks/predictions/pings: selected ship only
+const remembered = (() => { try { return localStorage.getItem("avw-focus"); } catch { return null; } })();
+state.focus = remembered !== "off";
+state.savedLayers = null;
+if (state.focus) state.dataLayers = new Set(FOCUS_LAYERS);
+
+function setFocus(on) {
+  state.focus = on;
+  try { localStorage.setItem("avw-focus", on ? "on" : "off"); } catch { /* storage blocked: just don't remember */ }
+  if (on) { state.savedLayers = state.dataLayers; state.dataLayers = new Set(FOCUS_LAYERS); }
+  else state.dataLayers = state.savedLayers || new Set(DATA_LAYERS.filter((d) => d.on).map((d) => d.id));
+  applyFocusChrome();
+  if (state.leftTab === "layers") UI.renderLayers(state);
+  update();
+}
+function applyFocusChrome() {
+  document.body.classList.toggle("focus", state.focus);
+  $("#focus-toggle").classList.toggle("on", state.focus);
+  $("#focus-toggle").setAttribute("aria-pressed", state.focus);
+  UI.renderLegend(state.focus);
+}
+
 let store, alertRows = [];
 
 // ---------------------------------------------------------------- redraw
@@ -41,8 +64,8 @@ function update() {
   }
   for (const v in latest) if (latestFine[v]) latest[v] = latestFine[v];
   M.applyFilter({ ...state });
-  M.setCueVisibility(state.dataLayers.has("cues"), state.selectedCue);
-  M.setLatestShips(Object.values(latest), state.selected);
+  M.setCueVisibility(state.dataLayers.has("cues"), state.selectedCue, state.focus ? state.selected : undefined);
+  M.setLatestShips(Object.values(latest), state.selected, state.focus, store.risk);
   UI.renderStats(store, state, visible);
   if (state.leftTab === "vessels") UI.renderVessels(store, state, latest);
   UI.renderTimeline(store, state);
@@ -107,6 +130,16 @@ M.on("detectionClick", (id, n, lngLat) => {
   if (d) M.showPopup(lngLat, detectionPopup(c, d));
 });
 
+// a "What's new" item: select the ship, move the time window to the moment, fly there and explain the event
+function openFeedItem(f) {
+  if (!f) return;
+  state.selected = f.vessel; state.selectedCue = null; M.showScenes([]);
+  openDetail(vesselCard(store, f.vessel));
+  if (state.windowDays) setWindow(state.windowDays, Math.min(store.maxT, f.t + 3 * DAY)); else update();
+  M.flyTo(f.lon, f.lat, 6);
+  if (f.event != null) M.showPopup([f.lon, f.lat], eventPopup(store.events[f.event]));
+}
+
 function openFleetShip(imo) {
   const onList = store.vessels.find((v) => v.imo === imo);
   if (onList) return selectShip(onList.name);
@@ -119,9 +152,11 @@ function openFleetShip(imo) {
 document.addEventListener("click", (ev) => {
   const t = ev.target.closest("[data-ship],[data-toggle],[data-cat],[data-port],[data-close],[data-zoom-ship],[data-only-ship]," +
     "[data-zoom-port],[data-fly],[data-window],[data-left-tab],[data-alert-tab],[data-alert-row],[data-basemap],[data-proj],#alerts-toggle,#play,#home," +
-    "[data-fleet],[data-fleet-type],[data-more-types],[data-zoom-cue],#pings-stat");
+    "[data-fleet],[data-fleet-type],[data-more-types],[data-zoom-cue],#pings-stat,#focus-toggle,[data-feed]");
   if (!t) return;
   const d = t.dataset;
+  if (t.id === "focus-toggle") return setFocus(!state.focus);
+  if (d.feed !== undefined) return openFeedItem(store.feed[+d.feed]);
   if (d.zoomCue) return zoomCue(store.cues.find((x) => x.cue_id === d.zoomCue));
   if (t.id === "pings-stat") { state.alertTab = "pings"; state.alertsOpen = true; document.body.classList.add("alerts-open"); return update(); }
   if (d.fleet) return openFleetShip(d.fleet);
@@ -239,7 +274,7 @@ window.addEventListener("resize", () => store && UI.renderTimeline(store, state)
     VECTOR_LAYERS.forEach((v) => M.setVectorVisible(v.id, state.vectorsOn[v.id]));
     M.setImagery(store.imagery);
     M.setCues(store.cues);
-    UI.renderLegend();
+    applyFocusChrome();
     showLeftTab("vessels");
     setWindow(90, store.maxT);
     $("#loading").classList.add("done");

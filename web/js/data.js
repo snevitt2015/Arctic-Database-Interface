@@ -4,7 +4,7 @@
 
   To add a new data file: load it in loadAll() and attach it to the store.
 */
-import { DATA_DIR, SHIP_CATEGORIES, PORT_RADIUS_KM, VECTOR_LAYERS } from "./config.js";
+import { DATA_DIR, SHIP_CATEGORIES, PORT_RADIUS_KM, VECTOR_LAYERS, FOCUS } from "./config.js";
 
 const parse = (file, optional = false) => new Promise((resolve, reject) =>
   Papa.parse(DATA_DIR + file + "?v=" + Date.now(), {
@@ -82,6 +82,7 @@ export async function loadAll() {
     }))
     .filter((r) => !isNaN(r.t) && !isNaN(r.lat))
     .sort((a, b) => a.t - b.t);
+  store.events.forEach((e, i) => (e.id = i));   // id = position after sorting, so store.events[id] is always this event
 
   // Ports: Excel details first, then the reference list fills in the rest
   const byName = new Map();
@@ -118,5 +119,91 @@ export async function loadAll() {
 
   store.minT = store.events[0]?.t ?? Date.now();
   store.maxT = store.events.at(-1)?.t ?? Date.now();
+  store.risk = computeRisk(store);
+  store.feed = computeFeed(store);
   return store;
 }
+
+// ---------------------------------------------------------------- focus mode: risk per ship
+// Adds up warning signs per ship (weights in config.js FOCUS). These are leads to check, not conclusions.
+export function computeRisk(store) {
+  const W = FOCUS.WEIGHTS, recentFrom = store.maxT - FOCUS.RECENT_DAYS * 864e5;
+  const out = {};
+  for (const v of store.vessels) {
+    const evs = store.events.filter((e) => e.vessel === v.name);
+    const jumps = evs.filter((e) => e.jump), enc = evs.filter((e) => e.ev === "encounter");
+    const dark = store.dark.filter((d) => d.vessel === v.name);
+    const id = store.identities[v.name] || { names: [], mmsis: [] };
+    const recent = (x) => x.t >= recentFrom;
+    const reasons = [];
+    let score = 0;
+    const add = (pts, label, sev, recentN = 0) => {
+      if (pts <= 0) return;
+      score += pts;
+      reasons.push({ label: label + (recentN ? ` · ${recentN} recent` : ""), sev, recent: recentN > 0, pts });
+    };
+
+    const jr = jumps.filter(recent).length;
+    add(Math.min(W.JUMP_CAP, W.jump * (jumps.length + jr)),
+      `${jumps.length} impossible move${jumps.length > 1 ? "s" : ""}`, "red", jr);
+
+    const longDark = dark.filter((d) => (d.hours ?? 0) > 24);
+    const dr = dark.filter(recent).length;
+    const maxH = Math.max(0, ...dark.map((d) => d.hours ?? 0));
+    add(W.dark * (dark.length + dr) + W.darkLong * longDark.length,
+      `${dark.length}× AIS off${maxH ? ` (max ${Math.round(maxH)} h)` : ""}`, "red", dr);
+
+    const extraM = Math.max(0, id.mmsis.length - 1), extraN = Math.max(0, id.names.length - 1);
+    add(W.extraMmsi * extraM, `${id.mmsis.length} MMSIs`, extraM >= 3 ? "red" : "amber");
+    add(W.extraName * extraN, `${id.names.length} names`, "amber");
+
+    const er = enc.filter(recent).length;
+    add(W.encounter * (enc.length + er), `${enc.length} encounter${enc.length > 1 ? "s" : ""} at sea`, "amber", er);
+
+    if (v.sanctioned && !/^(no|false|0)$/i.test(v.sanctioned)) add(W.sanctioned, "Sanctioned", "red");
+
+    score = Math.round(score * 10) / 10;
+    const level = FOCUS.LEVELS.find((l) => score >= l.min);
+    reasons.sort((a, b) => b.pts - a.pts);
+    out[v.name] = { score, level: level.id, color: level.color, reasons };
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------- focus mode: "what's new" feed
+export function computeFeed(store) {
+  const from = store.maxT - FOCUS.FEED_DAYS * 864e5, items = [];
+  for (const e of store.events) {
+    if (e.t < from) continue;
+    if (e.jump) items.push({ ...pick(e), kind: "jump", sev: "red",
+      text: `Impossible move${e.calcSpeed ? ` (implied ${Math.round(e.calcSpeed)} kn)` : ""} - possible spoofing`, event: e.id });
+    else if (e.ev === "ais_off") {
+      const d = store.dark.find((x) => x.vessel === e.vessel && Math.abs(x.t - e.t) < 36e5);
+      items.push({ ...pick(e), kind: "dark", sev: "red", event: e.id,
+        text: d?.hours ? `AIS switched off for ${Math.round(d.hours)} h` : "AIS switched off - not back on yet" });
+    } else if (e.ev === "encounter") items.push({ ...pick(e), kind: "encounter", sev: "amber", event: e.id,
+      text: "Encounter with another ship at sea" + (e.note ? ` - ${e.note}` : "") });
+  }
+  // a name or MMSI seen for the first time
+  const seen = new Map();
+  for (const e of store.events) {
+    for (const [what, val] of [["name", e.name], ["MMSI", e.mmsi]]) {
+      if (!val) continue;
+      const key = e.vessel + "|" + what + "|" + String(val).toUpperCase().replace(/[^A-Z0-9]/g, "");   // ignore spacing / case
+      if (!seen.has(key)) seen.set(key, { e, what, val });
+    }
+  }
+  const known = new Set();   // skip the very first identity of a ship (that's not a change)
+  for (const { e, what, val } of seen.values()) {
+    const k = e.vessel + "|" + what;
+    if (!known.has(k)) { known.add(k); continue; }
+    if (e.t < from) continue;
+    // name + MMSI changing at the same moment is one item
+    const same = items.find((x) => x.kind === "identity" && x.vessel === e.vessel && Math.abs(x.t - e.t) < 36e5);
+    if (same) same.parts.push(`${what} ${val}`);
+    else items.push({ ...pick(e), kind: "identity", sev: "amber", event: e.id, parts: [`${what} ${val}`] });
+  }
+  for (const x of items) if (x.kind === "identity") x.text = `Now broadcasting a new ${x.parts.join(" / new ")}`;
+  return items.sort((a, b) => b.t - a.t);
+}
+const pick = (e) => ({ vessel: e.vessel, t: e.t, lat: e.lat, lon: e.lon });

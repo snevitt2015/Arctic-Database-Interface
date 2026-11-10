@@ -231,3 +231,42 @@ a.more { display: block; padding: 4px 6px; font-size: 12px; }
 .ping-stat i { font-style: normal; color: #fecaca; background: rgba(239,68,68,.25); border-radius: 999px; padding: 0 5px; margin-left: 3px; }
 .ping-stat i:empty { display: none; }
 img.chip { width: 100%; border-radius: 8px; border: 1px solid var(--line); margin: 4px 0 8px; image-rendering: pixelated; }
+
+/* ---------------- focus mode (body.focus): only warning signs stand out */
+.focus-toggle { display: flex; align-items: center; gap: 6px; flex: none; cursor: pointer; padding: 6px 12px; border-radius: 9px;
+                background: rgba(255,255,255,.06); border: 1px solid var(--line); color: var(--muted); font-weight: 600; }
+.focus-toggle:hover { color: var(--text); }
+.focus-toggle.on { background: rgba(239,68,68,.16); border-color: rgba(239,68,68,.45); color: #fecaca; }
+.focus-toggle .on-label, .focus-toggle.on .off-label { display: none; }
+.focus-toggle.on .on-label { display: inline; }
+body.focus .stats .busy-stat { display: none; }
+
+/* what's new feed */
+.feed { margin: 2px 0 8px; padding-bottom: 6px; border-bottom: 1px solid var(--line); }
+.feed h5 .count { text-transform: none; letter-spacing: 0; }
+.feed-item { display: grid; grid-template-columns: 10px 1fr; gap: 8px; padding: 7px 6px; border-radius: 8px; cursor: pointer; }
+.feed-item:hover { background: rgba(255,255,255,.05); }
+.feed-dot { width: 8px; height: 8px; border-radius: 50%; margin-top: 5px; background: var(--amber); }
+.feed-item.red .feed-dot { background: #ef4444; box-shadow: 0 0 0 3px rgba(239,68,68,.25); }
+.feed-text { color: #cbd5e1; font-size: 12px; }
+.feed-empty { padding: 4px 6px; margin: 0; font-size: 12px; }
+.score { float: right; font-size: 11px; font-weight: 600; color: var(--muted); font-variant-numeric: tabular-nums; }
+.tag.recent { box-shadow: inset 0 0 0 1px currentColor; }
+.quiet-group summary { list-style: none; }
+.quiet-group summary::-webkit-details-marker { display: none; }
+.quiet-group summary::after { content: "show"; margin-left: auto; font-weight: 500; text-transform: none; letter-spacing: 0; color: var(--accent); }
+.quiet-group[open] summary::after { content: "hide"; }
+.chip.amber { background: rgba(251,191,36,.15); color: #fde68a; }
+
+/* map markers in focus mode */
+body.focus .ship-marker.risk-quiet .icon { transform: scale(.6); opacity: .75; }
+body.focus .ship-marker.risk-quiet .label { display: none; }
+body.focus .ship-marker.risk-quiet:hover .label, body.focus .ship-marker.risk-quiet.selected .label { display: inline; }
+body.focus .ship-marker.risk-high .label { background: rgba(127,29,29,.9); box-shadow: 0 0 0 1px rgba(239,68,68,.6); }
+body.focus .ship-marker.risk-watch .label { background: rgba(120,53,15,.85); }
+body.focus .ship-marker.risk-watch .label, body.focus .ship-marker.risk-high .label { font-size: 11px; }
+body.focus .port-marker .label { display: none; }
+body.focus .port-marker:hover .label { display: inline; }
+body.focus .port-marker:not(.watch) { opacity: .45; }
+.route-label.focus-hidden { display: none; }
+body.focus .ship-marker.selected .label { background: var(--accent-strong); color: #04121f; box-shadow: none; }
