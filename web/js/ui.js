@@ -5,7 +5,7 @@
   Each render function draws one part of the screen from `store` + `state`.
   main.js decides WHEN to call them.
 */
-import { SHIP_CATEGORIES, EVENT_TYPES, BASEMAPS, OVERLAYS, DATA_LAYERS, VECTOR_LAYERS } from "./config.js";
+import { SHIP_CATEGORIES, EVENT_TYPES, BASEMAPS, OVERLAYS, DATA_LAYERS, VECTOR_LAYERS, FOCUS } from "./config.js";
 import { esc, fmtTime, fmtDay } from "./cards.js";
 
 const $ = (sel) => document.querySelector(sel);
@@ -28,6 +28,7 @@ export function renderStats(store, state, visible) {
 
 // ---------------------------------------------------------------- vessels tab
 export function renderVessels(store, state, latestByShip) {
+  if (state.focus) return renderFocusVessels(store, state, latestByShip);
   const q = state.search.toLowerCase();
   const darkCount = {};
   store.dark.forEach((d) => (darkCount[d.vessel] = (darkCount[d.vessel] || 0) + 1));
@@ -52,6 +53,47 @@ export function renderVessels(store, state, latestByShip) {
       }).join("")}</div>`;
   }).join("");
   $("#tab-vessels").innerHTML = html || `<p class="muted pad">No ships match “${esc(state.search)}”.</p>`;
+}
+
+// ---------------------------------------------------------------- vessels tab, focus mode: "what's new" + ships ranked by warning signs
+const matches = (store, v, q) => !q || v.name.toLowerCase().includes(q) || (v.imo || "").includes(q) || (v.mmsi || "").includes(q) ||
+  (store.identities[v.name]?.names || []).some((n) => n.toLowerCase().includes(q));
+
+function renderFocusVessels(store, state, latestByShip) {
+  const q = state.search.toLowerCase();
+  const feed = store.feed.filter((f) => state.vessels.has(f.vessel)).slice(0, 8);
+  const feedHtml = q ? "" : `<div class="feed">
+    <h5>What's new <span class="count">last ${FOCUS.FEED_DAYS} days of data, to ${fmtDay(store.maxT)}</span></h5>
+    ${feed.length ? feed.map((f) => `<div class="feed-item ${f.sev}" data-feed="${store.feed.indexOf(f)}">
+        <span class="feed-dot"></span>
+        <div><div><b>${esc(f.vessel)}</b> <span class="meta">${fmtDay(f.t)}</span></div>
+        <div class="feed-text">${esc(f.text)}</div></div></div>`).join("")
+      : `<p class="muted feed-empty">No new warning signs in this period.</p>`}
+  </div>`;
+
+  const ranked = store.vessels.filter((v) => matches(store, v, q))
+    .sort((a, b) => (store.risk[b.name]?.score ?? 0) - (store.risk[a.name]?.score ?? 0));
+  const row = (v) => {
+    const r = store.risk[v.name], last = latestByShip[v.name];
+    const chips = (r?.reasons || []).slice(0, 3).map((x) => `<span class="tag ${x.sev}${x.recent ? " recent" : ""}">${esc(x.label)}</span>`).join("");
+    return `<div class="ship-row ${state.selected === v.name ? "selected" : ""}" data-ship="${esc(v.name)}">
+      <input type="checkbox" data-toggle="${esc(v.name)}" ${state.vessels.has(v.name) ? "checked" : ""}>
+      <div><div class="name"><span class="dot sm" style="background:${r?.color}"></span>${esc(v.name)}
+        ${r?.score ? `<span class="score" title="Warning-sign score (weights in config.js)">${r.score}</span>` : ""}</div>
+      <div class="meta">${last ? `last seen ${fmtDay(last.t)}` : lastCheck(store, v)}</div>
+      ${chips ? `<div class="flags">${chips}</div>` : ""}</div></div>`;
+  };
+  const groups = FOCUS.LEVELS.map((l) => {
+    const ships = ranked.filter((v) => store.risk[v.name]?.level === l.id);
+    if (!ships.length) return "";
+    const body = ships.map(row).join("");
+    const head = `<span class="dot" style="background:${l.color}"></span>${esc(l.label)} <span class="count">${ships.length}</span>`;
+    return l.id === "quiet" && !q
+      ? `<details class="group quiet-group"><summary class="group-head">${head}</summary>${body}</details>`
+      : `<div class="group"><div class="group-head">${head}</div>${body}</div>`;
+  }).join("");
+  $("#tab-vessels").innerHTML = feedHtml + (groups || `<p class="muted pad">No ships match “${esc(state.search)}”.</p>`) +
+    `<p class="hint pad">Score = AIS-off periods, impossible moves, extra MMSIs and names, and encounters at sea. Recent signals count double. These are leads to verify, not conclusions.</p>`;
 }
 
 function lastCheck(store, v) {
@@ -135,7 +177,13 @@ export function renderLayers(state) {
 }
 
 // ---------------------------------------------------------------- legend (bottom-left)
-export function renderLegend() {
+export function renderLegend(focus = false) {
+  if (focus) {
+    $("#legend").innerHTML = FOCUS.LEVELS.map((l) => `<span><i style="background:${l.color}"></i>${esc(l.label.split(" - ")[0])}</span>`).join("") +
+      `<span><i class="ring red"></i>AIS off</span><span><i style="background:#ef4444"></i>Impossible move</span>` +
+      `<span><i style="background:#f59e0b"></i>Encounter</span><span><i class="dash"></i>Dark gap</span>`;
+    return;
+  }
   $("#legend").innerHTML = SHIP_CATEGORIES.filter((c) => c.id !== "other").map((c) =>
     `<span><i style="background:${c.color}"></i>${esc(c.label)}</span>`).join("") +
     `<span><i class="ring red"></i>AIS off</span><span><i class="ring hollow"></i>Loitering</span><span><i class="dash"></i>Dark gap</span>`;
@@ -157,9 +205,12 @@ export function renderTimeline(store, state) {
   ctx.fillStyle = "rgba(56,189,248,.10)"; ctx.fillRect(x0, 0, Math.max(2, x1 - x0), h);
   counts.forEach((c, i) => {
     const bh = (Math.sqrt(c) / Math.sqrt(max)) * (h - 4), x = i * bw, inWin = x + bw >= x0 && x <= x1;
-    ctx.fillStyle = inWin ? "rgba(125,211,252,.9)" : "rgba(148,163,184,.35)";
+    ctx.fillStyle = state.focus ? (inWin ? "rgba(125,211,252,.35)" : "rgba(148,163,184,.18)") : inWin ? "rgba(125,211,252,.9)" : "rgba(148,163,184,.35)";
     ctx.fillRect(x + 0.5, h - bh, Math.max(1, bw - 1), bh);
-    if (dark[i]) { ctx.fillStyle = "#ef4444"; ctx.fillRect(x + 0.5, h - 3 * devicePixelRatio, Math.max(1, bw - 1), 3 * devicePixelRatio); }
+    if (dark[i] && state.focus) {   // focus: a full-height red band + a marker on top, so warning days are easy to find
+      ctx.fillStyle = "rgba(239,68,68,.13)"; ctx.fillRect(x, 0, Math.max(2, bw), h);
+      ctx.fillStyle = "#ef4444"; ctx.fillRect(x, 0, Math.max(2, bw), 4 * devicePixelRatio);
+    } else if (dark[i]) { ctx.fillStyle = "#ef4444"; ctx.fillRect(x + 0.5, h - 3 * devicePixelRatio, Math.max(1, bw - 1), 3 * devicePixelRatio); }
   });
   ctx.strokeStyle = "#7dd3fc"; ctx.lineWidth = 1.5 * devicePixelRatio;
   ctx.beginPath(); ctx.moveTo(x1, 0); ctx.lineTo(x1, h); ctx.stroke();

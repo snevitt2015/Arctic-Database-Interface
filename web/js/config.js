@@ -126,3 +126,28 @@ export const VECTOR_LAYERS = [
   { id: "routes", label: "Arctic sea routes (schematic - not for navigation)", url: "data/sea_routes.geojson",
     on: ["nsr", "nep", "nwp", "tsr", "rivers", "circle"], dashed: ["tsr", "circle"], thin: ["circle", "rivers"] },
 ];
+
+// ---------------------------------------------------------------------------
+// FOCUS MODE - a quiet map where only the warning signs stand out.
+// Each ship gets a score from the signals below (tune the weights here).
+// "Recent" = within RECENT_DAYS of the latest data; recent signals count double.
+// ---------------------------------------------------------------------------
+export const FOCUS = {
+  RECENT_DAYS: 90,          // recent signals count double
+  FEED_DAYS: 60,            // "What's new" lists events this close to the latest data
+  WEIGHTS: {
+    jump: 2,                // each impossible move (possible spoofing / shared identity), up to JUMP_CAP
+    JUMP_CAP: 10,
+    dark: 1,                // each AIS-off period
+    darkLong: 2,            // extra for each period over 24 h
+    extraMmsi: 1.5,         // each MMSI beyond the first
+    extraName: 0.5,         // each name beyond the first
+    encounter: 3,           // each ship-to-ship encounter at sea
+    sanctioned: 5,
+  },
+  LEVELS: [                 // first match wins
+    { id: "high",  min: 12, label: "High - several warning signs", color: "#ef4444" },
+    { id: "watch", min: 5, label: "Watch - some warning signs",   color: "#f59e0b" },
+    { id: "quiet", min: 0, label: "Few or no warning signs",     color: "#64748b" },
+  ],
+};
