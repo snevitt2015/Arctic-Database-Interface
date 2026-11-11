@@ -1,16 +1,15 @@
 cue_id,kind,vessel,imo,start,end,lat,lon,radius_km,radius_capped,priority,reason,off_lat,off_lon,on_lat,on_lon,other_lat,other_lon,first_seen
-322b327931,ais_off,Arctic Mulan,9864837,2026-08-21 06:30:47+00:00,2026-08-21 23:21:12+00:00,46.1666,-18.3257,296.7,False,high,AIS off for 17 h,43.93038,-19.58076,48.40272,-17.07055,,,2026-11-06
+322b327931,ais_off,Arctic Mulan,9864837,2026-08-21 06:30:47+00:00,2026-08-21 23:21:12+00:00,46.1665,-18.3257,296.7,False,high,AIS off for 17 h,43.93037,-19.58076,48.40272,-17.07055,,,2026-11-06
 a4a8dace00,spoofing,Pola Maria,9897705,2026-08-09 09:06:17+00:00,2026-08-10 08:21:22+00:00,45.2434,47.7343,120.0,False,high,Impossible move: 923 km at 44 kn (POLA MARIA → POLA MARIA),,,,,53.4698,49.4941,2026-11-06
 f61c35c684,identity,Nova Energy,9324277,2026-07-24 12:11:22+00:00,2026-10-13 05:09:57+00:00,21.4475,109.5412,50.0,False,medium,Identity changed: NOVA ENERGY / 750833000 → ARCTIC ENERGY / 273122030,,,,,,,2026-11-06
-82cb8851a9,silent,Orlets,8727903,2026-10-23 07:32:04+00:00,2026-10-26 07:32:04+00:00,64.5862,39.8447,300.0,True,low,No record for 14 days (last: port visit near Severodvinsk),,,,,,,2026-11-10
-5e0d8d0cd0,silent,Kord Atlantic,9299161,2026-10-22 13:16:49+00:00,2026-10-25 13:16:49+00:00,69.0059,33.0567,300.0,True,low,No record for 15 days (last: port visit near Murmansk),,,,,,,2026-11-10
-b6178ea23e,silent,Arctic Mulan,9864837,2026-10-22 04:44:56+00:00,2026-10-25 04:44:56+00:00,21.4475,109.5412,300.0,True,low,No record for 15 days (last: port visit near Tieshan (China)),,,,,,,2026-11-09
-dfa40be0d0,silent,SCF Sakhalin,9307724,2026-10-20 11:58:52+00:00,2026-10-23 11:58:52+00:00,73.7744,79.0212,300.0,True,low,No record for 17 days (last: loitering),,,,,,,2026-11-08
-e6e1230538,silent,Pecha,,2026-10-14 14:00:40+00:00,2026-10-17 14:00:40+00:00,69.0263,33.0412,300.0,True,low,No record for 23 days (last: port visit near Murmansk),,,,,,,2026-11-06
-338d39e357,silent,50 Let Pobedy,9152959,2026-10-14 12:14:50+00:00,2026-10-17 12:14:50+00:00,69.0475,33.0721,300.0,True,low,No record for 23 days (last: port visit near Murmansk),,,,,,,2026-11-06
-5b81dde574,silent,Nova Energy,9324277,2026-10-13 05:09:57+00:00,2026-10-16 05:09:57+00:00,21.4475,109.5412,300.0,True,low,No record for 24 days (last: port visit near Tieshan (China)),,,,,,,2026-11-06
-282db3d935,silent,Arctic Pioneer,9256602,2026-10-11 19:19:03+00:00,2026-10-14 19:19:03+00:00,71.009,73.7896,300.0,True,low,No record for 26 days (last: port visit near Sabetta),,,,,,,2026-11-06
-0652efd214,silent,Lady R,9161003,2026-09-21 08:02:57+00:00,2026-09-24 08:02:57+00:00,60.016,29.3139,300.0,True,low,No record for 46 days (last: port visit),,,,,,,2026-11-06
-8769c52270,silent,Murmansk,9167930,2026-09-09 12:22:49+00:00,2026-09-12 12:22:49+00:00,64.4944,40.6844,300.0,True,low,No record for 58 days (last: port visit near Arkhangelsk),,,,,,,2026-11-06
-1a02835de0,silent,ALEXEY KOSYGIN,9904546,2026-08-29 13:00:37+00:00,2026-09-01 13:00:37+00:00,30.1381,122.302,300.0,True,low,No record for 69 days (last: port visit),,,,,,,2026-11-06
-64d40d6561,silent,Marshal Vasilevskiy,9778313,2026-08-28 17:23:10+00:00,2026-08-31 17:23:10+00:00,60.5088,28.1794,300.0,True,low,No record for 70 days (last: port visit),,,,,,,2026-11-06
+9634138060,silent,Angara,9179842,2026-10-24 14:54:51+00:00,2026-10-27 14:54:51+00:00,59.9929,29.7019,300.0,True,low,No record for 14 days (last: port visit),,,,,,,2026-11-11
+82cb8851a9,silent,Orlets,8727903,2026-10-23 07:32:04+00:00,2026-10-26 07:32:04+00:00,64.5862,39.8447,300.0,True,low,No record for 16 days (last: port visit near Severodvinsk),,,,,,,2026-11-10
+5e0d8d0cd0,silent,Kord Atlantic,9299161,2026-10-22 13:16:49+00:00,2026-10-25 13:16:49+00:00,69.0059,33.0567,300.0,True,low,No record for 16 days (last: port visit near Murmansk),,,,,,,2026-11-10
+b6178ea23e,silent,Arctic Mulan,9864837,2026-10-22 04:44:56+00:00,2026-10-25 04:44:56+00:00,21.4475,109.5412,300.0,True,low,No record for 17 days (last: port visit near Tieshan (China)),,,,,,,2026-11-09
+dfa40be0d0,silent,SCF Sakhalin,9307724,2026-10-20 11:58:52+00:00,2026-10-23 11:58:52+00:00,73.7744,79.0212,300.0,True,low,No record for 18 days (last: loitering),,,,,,,2026-11-08
+e6e1230538,silent,Pecha,,2026-10-14 14:00:40+00:00,2026-10-17 14:00:40+00:00,69.0263,33.0412,300.0,True,low,No record for 24 days (last: port visit near Murmansk),,,,,,,2026-11-06
+338d39e357,silent,50 Let Pobedy,9152959,2026-10-14 12:14:50+00:00,2026-10-17 12:14:50+00:00,69.0475,33.0721,300.0,True,low,No record for 24 days (last: port visit near Murmansk),,,,,,,2026-11-06
+282db3d935,silent,Arctic Pioneer,9256602,2026-10-11 19:19:03+00:00,2026-10-14 19:19:03+00:00,71.009,73.7896,300.0,True,low,No record for 27 days (last: port visit near Sabetta),,,,,,,2026-11-06
+0652efd214,silent,Lady R,9161003,2026-09-21 08:02:57+00:00,2026-09-24 08:02:57+00:00,60.016,29.3139,300.0,True,low,No record for 47 days (last: port visit),,,,,,,2026-11-06
+1a02835de0,silent,ALEXEY KOSYGIN,9904546,2026-08-29 13:00:37+00:00,2026-09-01 13:00:37+00:00,30.1381,122.302,300.0,True,low,No record for 70 days (last: port visit),,,,,,,2026-11-06
+64d40d6561,silent,Marshal Vasilevskiy,9778313,2026-08-28 17:23:10+00:00,2026-08-31 17:23:10+00:00,60.5088,28.1794,300.0,True,low,No record for 71 days (last: port visit),,,,,,,2026-11-06
