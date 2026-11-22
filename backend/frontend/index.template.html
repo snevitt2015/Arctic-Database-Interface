@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Arctic Vessel Watch</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+<script>/*__TOPOJSON__*/</script>
+<style>
+:root{
+  --nav:#0f2741; --nav2:#163a5f; --bg:#eef2f6; --card:#fff; --line:#dbe3ec; --line2:#c9d4e0;
+  --text:#14212e; --muted:#5d6f83; --dim:#8a9aab;
+  --sea:#1d2b3a; --land:#35455a; --coast:#4a5d76; --grid:#263749;
+  --accent:#1b7fd1; --high:#e0453f; --watch:#e39b17; --low:#1aa58f;
+  --mono:'JetBrains Mono',ui-monospace,monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font:14px/1.5 Inter,system-ui,sans-serif}
+button{font:inherit;color:inherit;cursor:pointer}
+a{color:var(--accent)}
+.nav{position:sticky;top:0;z-index:50;display:flex;align-items:center;gap:22px;height:54px;padding:0 20px;background:var(--nav);color:#fff}
+.logo{display:flex;align-items:center;gap:9px;font-weight:800;letter-spacing:.04em;cursor:pointer;white-space:nowrap}
+.tabs{display:flex;height:100%;margin-left:12px}
+.tabs a{display:flex;align-items:center;padding:0 16px;color:#b9cde3;text-decoration:none;font-weight:600;font-size:13px;letter-spacing:.06em}
+.tabs a:hover{color:#fff}
+.tabs a.on{color:#fff;background:var(--nav2);box-shadow:inset 0 -3px 0 #4fb0ff}
+.sp{flex:1}
+.search{position:relative}
+.search input{width:250px;border:0;border-radius:6px;padding:8px 12px 8px 32px;font:inherit;font-size:13px;background:#24496f;color:#fff}
+.search input::placeholder{color:#9fb7d0}
+.search input:focus{outline:2px solid #4fb0ff}
+.search svg{position:absolute;left:10px;top:10px}
+.results{position:absolute;top:40px;right:0;width:320px;background:#fff;color:var(--text);border-radius:8px;box-shadow:0 8px 30px rgba(0,0,0,.25);z-index:60;max-height:340px;overflow:auto;display:none}
+.results div{padding:8px 12px;cursor:pointer;display:flex;justify-content:space-between;gap:8px;border-bottom:1px solid var(--line)}
+.results div:hover{background:#f2f6fa}
+.view{display:none}
+.view.on{display:block}
+.page{max-width:1180px;margin:0 auto;padding:28px 24px 60px}
+h2{font-size:20px;margin:0 0 4px}
+.lead{color:var(--muted);margin:0 0 18px;max-width:780px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 20px}
+.grid{display:grid;gap:16px}
+.sub{color:var(--muted);font-size:12.5px}
+.pill{font-family:var(--mono);font-size:11.5px;padding:2px 8px;border-radius:5px;font-weight:500;white-space:nowrap;display:inline-block}
+.p-high,.p-bad{background:#fde7e6;color:var(--high)} .p-watch,.p-medium{background:#fdf1dc;color:#a96d00}
+.p-low,.p-ok{background:#dcf4ef;color:#0f7a69} .p-info,.p-none{background:#edf1f5;color:var(--muted)}
+.hero{background:linear-gradient(160deg,#0f2741 0%,#173d63 60%,#1d4f7c 100%);color:#fff}
+.hero .page{padding:56px 24px 44px}
+.hero h1{font-size:40px;margin:0 0 10px;letter-spacing:-.01em}
+.hero p{color:#c6d8ea;font-size:16px;max-width:720px;margin:0 0 26px}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;max-width:880px}
+.stat{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.14);border-radius:10px;padding:14px 16px}
+.stat b{display:block;font-size:26px;font-family:var(--mono);font-weight:600}
+.stat span{color:#b9cde3;font-size:12.5px}
+.btn{display:inline-block;background:#4fb0ff;color:#0b2038;font-weight:700;border:0;border-radius:8px;padding:10px 18px;text-decoration:none;margin-top:24px}
+.tiles{grid-template-columns:repeat(4,1fr)}
+.tile{cursor:pointer;transition:border-color .15s}
+.tile:hover{border-color:var(--accent)}
+.tile h3{margin:0 0 6px;font-size:15px}
+.tile p{margin:0;color:var(--muted);font-size:13px}
+.tile .k{font-family:var(--mono);font-size:22px;font-weight:600;margin-top:10px}
+#v-map{position:fixed;top:54px;left:0;right:0;bottom:0}
+#v-map:not(.on){display:none}
+#mapwrap{position:absolute;inset:0;background:var(--sea);overflow:hidden}
+#map{width:100%;height:100%;display:block;cursor:grab}
+.land{fill:var(--land);stroke:var(--coast);stroke-width:.6px;vector-effect:non-scaling-stroke}
+.grat{fill:none;stroke:var(--grid);stroke-width:.6px;vector-effect:non-scaling-stroke}
+.c66{fill:none;stroke:#5b7aa0;stroke-dasharray:4 4;stroke-width:1px;vector-effect:non-scaling-stroke;opacity:.7}
+.sphere{fill:var(--sea)}
+.ship{cursor:pointer;stroke-width:1.3px;vector-effect:non-scaling-stroke}
+.vlabel{fill:#d6e1ee;font-weight:500;paint-order:stroke;stroke:#14202c;pointer-events:none}
+.hist{fill:#4fb0ff;pointer-events:none}
+.lane{fill:none;stroke:#6f86a3;stroke-width:.8px;opacity:.35;vector-effect:non-scaling-stroke;pointer-events:none}
+.leg{fill:none;stroke-linecap:round;vector-effect:non-scaling-stroke}
+.leg.hit{stroke:transparent;stroke-width:9px;cursor:pointer}
+.ctl .sep{width:1px;background:rgba(255,255,255,.25);margin:0 2px}
+.ctl select{background:#fff;border:1px solid var(--line2);border-radius:6px;padding:4px 8px;font-size:12px;color:var(--text)}
+.hint{position:absolute;top:56px;right:12px;background:rgba(255,255,255,.95);border-radius:8px;padding:7px 11px;font-size:12px;color:var(--muted);box-shadow:0 2px 10px rgba(0,0,0,.2);display:none}
+.mk{cursor:pointer;vector-effect:non-scaling-stroke}
+.ctl{position:absolute;top:12px;right:12px;display:flex;gap:6px}
+.chip{background:#fff;border:1px solid var(--line2);border-radius:6px;padding:5px 11px;font-size:12px;color:var(--muted)}
+.chip.on{color:var(--text);border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+.legend{position:absolute;right:12px;bottom:12px;background:rgba(255,255,255,.95);border-radius:8px;padding:9px 12px;font-size:11.5px;color:var(--muted);box-shadow:0 2px 10px rgba(0,0,0,.2)}
+.legend div{display:flex;align-items:center;gap:7px;margin:2px 0}
+.legend .h{color:var(--text);font-weight:600;margin-top:6px}
+.legend .h:first-child{margin-top:0}
+.tip{position:absolute;pointer-events:none;background:#fff;border-radius:6px;padding:7px 10px;font-size:12px;display:none;z-index:5;max-width:280px;box-shadow:0 4px 16px rgba(0,0,0,.25)}
+.vcard{position:absolute;top:12px;left:12px;bottom:12px;width:350px;background:#fff;border-radius:10px;box-shadow:0 6px 26px rgba(0,0,0,.35);display:none;flex-direction:column;overflow:hidden;z-index:10}
+.vcard.on{display:flex}
+.vh{background:var(--nav);color:#fff;padding:10px 14px;display:flex;align-items:flex-start;gap:10px}
+.vh .t{font-weight:700;font-size:16px;line-height:1.2}
+.vh .s{color:#b9cde3;font-size:12px}
+.vh .x{margin-left:auto;background:none;border:0;color:#b9cde3;font-size:20px;line-height:1}
+.photo{height:130px;background:linear-gradient(135deg,#dfe7ef,#c9d6e3);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;color:var(--muted);font-size:12.5px;text-align:center;padding:10px}
+.photo a{font-weight:600;text-decoration:none}
+.vbody{overflow:auto;flex:1}
+.quick{display:grid;grid-template-columns:1fr 1fr;gap:8px 12px;padding:12px 14px;border-bottom:1px solid var(--line);font-size:12.5px}
+.quick b{display:block;font-weight:600;font-size:13px}
+.quick span{color:var(--muted);font-size:11.5px}
+details{border-bottom:1px solid var(--line)}
+summary{padding:10px 14px;font-weight:700;font-size:12px;letter-spacing:.05em;text-transform:uppercase;color:var(--nav);cursor:pointer;background:#f5f8fb;list-style:none;display:flex;justify-content:space-between}
+summary::-webkit-details-marker{display:none}
+summary::after{content:'▾';color:var(--dim)}
+details:not([open]) summary::after{content:'▸'}
+.dbody{padding:10px 14px}
+.kv{display:grid;grid-template-columns:112px 1fr;gap:4px 10px;font-size:12.5px;margin:0}
+.kv dt{color:var(--muted)}
+.kv dd{margin:0;font-family:var(--mono);font-size:12px;word-break:break-word}
+.kv dd.na{color:var(--dim);font-family:Inter;font-style:italic}
+table.t{width:100%;border-collapse:collapse;font-size:12.5px}
+table.t th{text-align:left;color:var(--muted);font-weight:600;font-size:11.5px;padding:7px 8px;border-bottom:1px solid var(--line2);white-space:nowrap}
+table.t td{padding:8px;border-bottom:1px solid var(--line);vertical-align:top}
+table.t td.m{font-family:var(--mono);font-size:12px}
+table.t tr.click{cursor:pointer}
+table.t tr.click:hover td{background:#f3f7fb}
+.f{padding:8px 0;border-bottom:1px solid var(--line);cursor:pointer;font-size:12.5px}
+.f:last-child{border:0}
+.fh{display:flex;gap:8px;align-items:center}
+.fh .d{margin-left:auto;color:var(--muted);font-family:var(--mono);font-size:11px}
+.ref{padding:7px 0;border-bottom:1px solid var(--line);font-size:12.5px}
+.ref:last-child{border:0}
+.issue{font-size:12px;color:var(--high);margin-top:2px}
+.issue.w{color:#a96d00}
+.filters{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+.filters button{background:#fff;border:1px solid var(--line2);border-radius:14px;padding:4px 12px;font-size:12.5px;color:var(--muted)}
+.filters button.on{border-color:var(--accent);color:var(--accent);font-weight:600}
+.empty{color:var(--muted);background:#f7f9fb;border:1px dashed var(--line2);border-radius:8px;padding:14px;font-size:13px}
+.empty b{color:var(--text)}
+.cmp{display:grid;grid-template-columns:1fr 1fr 1.4fr;gap:14px}
+.pane h4{margin:0 0 8px;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.img{height:190px;border-radius:8px;background:#0e1620;display:flex;align-items:center;justify-content:center;color:#7f93ad;font-size:12.5px;text-align:center;padding:12px;overflow:hidden}
+.img img{max-width:100%;max-height:100%}
+.conf{height:8px;border-radius:4px;background:#e6ecf2;overflow:hidden;margin:6px 0}
+.conf i{display:block;height:100%;background:var(--accent)}
+.fits{font-weight:600;font-family:var(--mono)} .fits.y{color:#0f7a69} .fits.n{color:var(--high)} .fits.na{color:var(--dim);font-weight:400}
+.form{display:grid;gap:10px}
+.form label{font-size:12px;color:var(--muted);display:grid;gap:3px}
+.form input{border:1px solid var(--line2);border-radius:6px;padding:7px 9px;font:13px var(--mono)}
+.big{font-size:22px;font-family:var(--mono);font-weight:600}
+@media (max-width:900px){.stats,.tiles{grid-template-columns:1fr 1fr}.cmp{grid-template-columns:1fr}.tabs a{padding:0 9px}.search{display:none}}
+</style>
+</head>
+<body>
+<nav class="nav">
+  <div class="logo" data-go="home"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#4fb0ff" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 3v18M3 12h18"/><circle cx="12" cy="12" r="3.5" fill="#4fb0ff" stroke="none"/></svg>ARCTIC VESSEL WATCH</div>
+  <div class="tabs" id="tabs"></div>
+  <div class="sp"></div>
+  <div class="search"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#9fb7d0" stroke-width="2.2"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
+    <input id="q" placeholder="Search ship, IMO or MMSI" autocomplete="off"><div class="results" id="results"></div></div>
+</nav>
+<section class="view" id="v-home"></section>
+<section class="view" id="v-map">
+  <div id="mapwrap"><svg id="map"></svg>
+    <div class="ctl">
+      <button class="chip" id="focus" title="Focus: only the selected ship's previous routes; other ships fade back">Focus: on</button>
+      <select id="period" title="How far back routes go"><option value="90">Routes: 3 months</option><option value="180">Routes: 6 months</option><option value="365" selected>Routes: 12 months</option></select>
+      <button class="chip" id="lanes" title="The open global shipping-lane network (Eurostat MARNET)">Shipping lanes</button>
+      <span class="sep"></span>
+      <button class="chip on" data-proj="world">World</button><button class="chip" data-proj="arctic">Arctic</button><button class="chip" id="reset">Reset</button></div>
+    <div class="hint" id="hint"></div>
+    <div class="legend" id="legend"></div><div class="tip" id="tip"></div><div class="vcard" id="vcard"></div>
+  </div>
+</section>
+<section class="view" id="v-vessels"><div class="page" id="vessels"></div></section>
+<section class="view" id="v-findings"><div class="page" id="findings"></div></section>
+<section class="view" id="v-imagery"><div class="page" id="imagery"></div></section>
+<section class="view" id="v-data"><div class="page" id="data"></div></section>
+<script>
+const LAND = /*__LAND__*/null;
+const SNAPSHOT = /*__SNAPSHOT__*/null;   // static site / preview: real API answers saved from arctic.db
+
+async function api(path){ if (SNAPSHOT) return SNAPSHOT[path] ?? null; const r = await fetch(path); if (!r.ok) throw new Error(path); return r.json(); }
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const fmtTime = t => t ? t.slice(0,16).replace('T',' ') + ' UTC' : '—';
+const fmtDate = t => t ? new Date(t).toLocaleDateString('en-GB', {day:'numeric', month:'short', year:'numeric', timeZone:'UTC'}) : '—';
+const fmtLat = (lat, lon) => lat == null ? '—' : `${Math.abs(lat).toFixed(2)}°${lat>=0?'N':'S'} ${Math.abs(lon).toFixed(2)}°${lon>=0?'E':'W'}`;
+const ago = h => h == null ? '' : h < 48 ? `${Math.round(h)} h ago` : `${Math.round(h/24)} d ago`;
+const band = r => r >= 12 ? 'high' : r >= 5 ? 'watch' : 'low';
+const COL = {high:'#e0453f', watch:'#e39b17', medium:'#e39b17', low:'#1aa58f', info:'#7f93ad'};
+const age3 = h => h <= 24*7 ? 1 : h <= 24*30 ? 2 : 3;
+const D = {};
+const S = {view:'home', vessel:null, finding:null, proj:'world', kind:null, showInfo:false, focus:true, lanes:false, days:365};
+try { const f = localStorage.getItem('avw-focus'); if (f !== null) S.focus = f === '1'; } catch(e) {}
+const realFindings = () => (D.anomalies || []).filter(a => a.severity !== 'info');
+const label = k => (D.kinds.find(x => x.kind === k) || {}).label || k;
+
+/* routing: a cover page, then tabs */
+const TABS = [['map','MAP'],['vessels','VESSELS'],['findings','FINDINGS'],['imagery','IMAGERY'],['data','DATA']];
+function go(view){ S.view = view; try { history.replaceState(null, '', '#' + view); } catch(e) {} show(); window.scrollTo(0, 0); }
+function bindGo(scope){ scope.querySelectorAll('[data-go]').forEach(a => a.onclick = e => { e.preventDefault(); go(a.dataset.go); }); }
+function show(){
+  document.getElementById('tabs').innerHTML = TABS.map(([id, l]) => `<a href="#${id}" data-go="${id}" class="${S.view===id?'on':''}">${l}</a>`).join('');
+  bindGo(document.querySelector('.nav'));
+  document.querySelectorAll('.view').forEach(v => v.classList.toggle('on', v.id === 'v-' + S.view));
+  document.body.style.overflow = S.view === 'map' ? 'hidden' : '';
+  ({home: renderHome, map: renderMap, vessels: renderVessels, findings: renderFindings, imagery: renderImagery, data: renderData})[S.view]();
+}
+window.addEventListener('hashchange', () => { const h = location.hash.slice(1); if (h && h !== S.view && (h === 'home' || TABS.some(t => t[0] === h))) { S.view = h; show(); } });
+
+/* HOME */
+function renderHome(){
+  const fl = D.fleet.features, recent = fl.filter(f => f.properties.age_hours <= 24*7).length, refs = D.refs || [];
+  const el = document.getElementById('v-home');
+  el.innerHTML = `
+  <div class="hero"><div class="page">
+    <h1>Arctic Vessel Watch</h1>
+    <p>Open-source monitoring of AIS spoofing and dark activity by vessels operating in the Russian Arctic: where they report, when they go silent, and whether satellite imagery confirms who they are.</p>
+    <div class="stats">
+      <div class="stat"><b>${fl.length}</b><span>watch-list ships</span></div>
+      <div class="stat"><b>${recent}</b><span>reported in the last 7 days</span></div>
+      <div class="stat"><b>${realFindings().length}</b><span>findings: AIS off, encounters, ID problems</span></div>
+      <div class="stat"><b>${fmtDate(D.overview.as_of)}</b><span>latest record</span></div>
+    </div>
+    <a class="btn" href="#map" data-go="map">Open the map →</a>
+  </div></div>
+  <div class="page">
+    <div class="grid tiles">
+      <div class="card tile" data-go="map"><h3>Map</h3><p>Every watch-list ship at its last reported position, coloured by risk. Click a ship for its card.</p><div class="k">${fl.length}</div><div class="sub">ships</div></div>
+      <div class="card tile" data-go="vessels"><h3>Vessels</h3><p>The watch list as a table: identity, last report, risk and findings at a glance.</p><div class="k">${D.watch.length}</div><div class="sub">on the watch list</div></div>
+      <div class="card tile" data-go="findings"><h3>Findings</h3><p>When ships switched AIS off, met at sea, or broadcast IDs that don't add up.</p><div class="k">${realFindings().length}</div><div class="sub">findings</div></div>
+      <div class="card tile" data-go="imagery"><h3>Imagery</h3><p>Radar targets compared against AIS, the registry, 3D models and optical references.</p><div class="k">${(D.sar||[]).length}</div><div class="sub">radar detections · ${refs.filter(r => r.usable).length} of ${refs.length} records usable</div></div>
+    </div>
+    <p class="sub" style="margin-top:22px">Real data only: Global Fishing Watch events and the team's Capstone database. Nothing here is simulated. Flags are leads to verify, not conclusions. <a href="#data" data-go="data">Sources and known data problems →</a></p>
+  </div>`;
+  bindGo(el);
+}
+
+/* MAP */
+const svg = d3.select('#map'), root = svg.append('g');
+const gBase = root.append('g'), gLanes = root.append('g'), gRoutes = root.append('g'), gHist = root.append('g'), gMk = root.append('g'), gShip = root.append('g'), gLab = root.append('g');
+let projection, path, K = 1, mapBuilt = false;
+const zoom = d3.zoom().scaleExtent([1, 40]).on('zoom', e => { K = e.transform.k; root.attr('transform', e.transform); restyle(); });
+svg.call(zoom);
+const size = () => { const r = document.getElementById('mapwrap').getBoundingClientRect(); return [r.width, r.height]; };
+const xy = (lon, lat) => projection([lon, lat]);
+const shown = (lon, lat) => S.proj !== 'arctic' || d3.geoDistance([lon,lat],[80,90]) < 42*Math.PI/180;
+function buildMap(){
+  const [w, h] = size(); svg.attr('viewBox', `0 0 ${w} ${h}`);
+  projection = S.proj === 'arctic'
+    ? d3.geoAzimuthalEqualArea().rotate([-80, -90]).clipAngle(42).fitExtent([[10,10],[w-10,h-10]], {type:'Sphere'})
+    : d3.geoNaturalEarth1().rotate([-40, 0]).fitExtent([[20,20],[w-20,h-20]], {type:'Sphere'});
+  path = d3.geoPath(projection);
+  gBase.selectAll('*').remove();
+  gBase.append('path').datum({type:'Sphere'}).attr('class','sphere').attr('d', path);
+  gBase.append('path').datum(d3.geoGraticule10()).attr('class','grat').attr('d', path);
+  gBase.append('path').datum(topojson.feature(LAND, LAND.objects.land)).attr('class','land').attr('d', path);
+  gBase.append('path').datum({type:'LineString', coordinates: d3.range(-180, 181, 2).map(x => [x, 66.56])}).attr('class','c66').attr('d', path);
+  gShip.selectAll('*').remove(); gLab.selectAll('*').remove(); gMk.selectAll('*').remove(); gLanes.selectAll('*').remove(); gRoutes.selectAll('*').remove();
+  mapBuilt = true;
+}
+function renderMap(){ if (!mapBuilt) buildMap(); syncControls(); drawLanes(); drawRoutes(); drawShips(); drawMarkers(); drawHistory(); renderLegend(); renderCard(); }
+function syncControls(){
+  const f = document.getElementById('focus'); f.textContent = 'Focus: ' + (S.focus ? 'on' : 'off'); f.classList.toggle('on', S.focus);
+  document.getElementById('lanes').classList.toggle('on', S.lanes);
+  document.getElementById('period').value = String(S.days);
+  const hint = document.getElementById('hint');
+  hint.style.display = S.focus && !S.vessel ? 'block' : 'none';
+  hint.textContent = 'Focus mode: click a ship to see only its previous routes';
+}
+document.getElementById('focus').onclick = () => { S.focus = !S.focus; try { localStorage.setItem('avw-focus', S.focus ? '1' : '0'); } catch(e) {} renderMap(); };
+document.getElementById('lanes').onclick = () => { S.lanes = !S.lanes; renderMap(); };
+document.getElementById('period').onchange = e => { S.days = +e.target.value; renderMap(); };
+function drawLanes(){
+  gLanes.selectAll('*').remove();
+  if (!S.lanes || !D.lanes) return;
+  gLanes.selectAll('path').data(D.lanes.features).enter().append('path').attr('class','lane').attr('d', path);
+}
+// previous routes: legs between REPORTED positions, reconstructed along sea lanes (never straight across land)
+function drawRoutes(){
+  gRoutes.selectAll('*').remove();
+  if (!D.routes) return;
+  const cutoff = Date.parse(D.overview.as_of) - S.days * 864e5;
+  const risk = Object.fromEntries(D.fleet.features.map(f => [f.properties.vessel_id, f.properties.risk_score]));
+  const names = Object.fromEntries(D.fleet.features.map(f => [f.properties.vessel_id, f.properties.name]));
+  let legs = D.routes.features.filter(f => Date.parse(f.properties.to_ts) >= cutoff);
+  if (S.focus) legs = S.vessel ? legs.filter(f => f.properties.vessel_id === S.vessel) : [];
+  const sel = id => id === S.vessel;
+  legs.sort((a, b) => sel(a.properties.vessel_id) - sel(b.properties.vessel_id));
+  const col = f => sel(f.properties.vessel_id) ? '#4fb0ff' : COL[band(risk[f.properties.vessel_id] || 0)];
+  gRoutes.selectAll('path.leg:not(.hit)').data(legs).enter().append('path').attr('class','leg').attr('d', path)
+    .attr('stroke', col).attr('stroke-width', f => sel(f.properties.vessel_id) ? 2.4 : 1.2)
+    .attr('stroke-dasharray', f => f.properties.how.includes('ice') ? '2 4' : null)
+    .attr('opacity', f => sel(f.properties.vessel_id) ? .95 : (S.vessel ? .18 : .45));
+  gRoutes.selectAll('path.hit').data(legs).enter().append('path').attr('class','leg hit').attr('d', path)
+    .on('mousemove', (e, f) => tip(e, `<b>${esc(names[f.properties.vessel_id] || '')}</b><br>${fmtDate(f.properties.from_ts)} → ${fmtDate(f.properties.to_ts)} · ${f.properties.km.toLocaleString()} km<br><span class="sub">${esc(f.properties.from_event || '')} → ${esc(f.properties.to_event || '')}<br>Path ${esc(f.properties.how)}</span>`))
+    .on('mouseleave', hideTip).on('click', (e, f) => { e.stopPropagation(); openVessel(f.properties.vessel_id); });
+}
+// a ship with a known course is an arrow pointing that way (as on VesselFinder); otherwise a dot. Never a line.
+const ARROW = 'M0,-7 L4.5,5 L0,2.5 L-4.5,5 Z';
+function drawShips(){
+  const feats = D.fleet.features.filter(f => shown(...f.geometry.coordinates));
+  const sel = gShip.selectAll('g.s').data(feats, f => f.properties.vessel_id);
+  sel.exit().remove();
+  const en = sel.enter().append('g').attr('class','s')
+    .on('click', (e, f) => { e.stopPropagation(); openVessel(f.properties.vessel_id); })
+    .on('mousemove', (e, f) => tip(e, `<b>${esc(f.properties.name)}</b><br><span class="sub">${esc(f.properties.ship_type || '')}</span><br><span class="sub">last reported ${fmtDate(f.properties.ts)} · ${ago(f.properties.age_hours)}</span>`))
+    .on('mouseleave', hideTip);
+  en.each(function(f){ d3.select(this).append(f.properties.cog != null ? 'path' : 'circle').attr('class','ship'); });
+  en.merge(sel).each(function(f){
+    const p = xy(...f.geometry.coordinates), a = age3(f.properties.age_hours), c = COL[band(f.properties.risk_score)];
+    d3.select(this).attr('data-x', p[0]).attr('data-y', p[1]).attr('data-r', f.properties.cog || 0)
+      .select('.ship').attr('d', f.properties.cog != null ? ARROW : null)
+      .attr('fill', a === 3 ? '#fff' : c).attr('fill-opacity', a === 2 ? .5 : 1)
+      .attr('opacity', S.focus && S.vessel && f.properties.vessel_id !== S.vessel ? .35 : 1)
+      .attr('stroke', f.properties.vessel_id === S.vessel ? '#fff' : (a === 3 ? c : '#0c1520'));
+  });
+  // ships reported at the identical spot (e.g. the same anchorage) share one label; their positions stay as reported
+  const spots = d3.group(feats, f => f.geometry.coordinates.map(c => c.toFixed(3)).join(','));
+  const labelled = [...spots.values()].map(g => { const sel = g.find(f => f.properties.vessel_id === S.vessel) || [...g].sort((a, b) => b.properties.risk_score - a.properties.risk_score)[0];
+    return {...sel, others: g.length - 1, ids: g.map(f => f.properties.vessel_id)}; });
+  const lab = gLab.selectAll('text').data(labelled, f => f.ids.join('-'));
+  lab.exit().remove();
+  lab.enter().append('text').attr('class','vlabel').merge(lab)
+    .attr('x', f => xy(...f.geometry.coordinates)[0]).attr('y', f => xy(...f.geometry.coordinates)[1])
+    .text(f => f.properties.name + (f.others ? ` +${f.others}` : ''));
+  restyle();
+}
+function drawMarkers(){
+  const a = S.finding ? D.anomalies.find(x => x.id === S.finding) : null;
+  const pts = a && a.lat != null ? [{a, lon:a.lon, lat:a.lat, end:false}].concat(a.lat2 != null ? [{a, lon:a.lon2, lat:a.lat2, end:true}] : []) : [];
+  const sel = gMk.selectAll('path').data(pts.filter(p => shown(p.lon, p.lat)), p => p.a.id + (p.end ? 'e' : 's'));
+  sel.exit().remove();
+  sel.enter().append('path').attr('class','mk')
+    .on('mousemove', (e, p) => tip(e, `<b>${esc(p.a.label)}</b><br>${p.end ? 'Reappeared here' : (p.a.lat2 != null ? 'Went dark here' : 'Happened here')} · ${fmtDate(p.end ? p.a.end_ts : p.a.start_ts)}`))
+    .on('mouseleave', hideTip).merge(sel)
+    .attr('data-x', p => xy(p.lon, p.lat)[0]).attr('data-y', p => xy(p.lon, p.lat)[1])
+    .attr('fill', p => p.end ? COL[p.a.severity] : '#fff').attr('stroke', p => COL[p.a.severity]).attr('stroke-width', 2.6);
+  restyle();
+}
+async function drawHistory(){
+  gHist.selectAll('*').remove(); if (!S.vessel) return;
+  const t = await api(`/api/vessels/${S.vessel}/track?days=365`);
+  const cutoff = Date.parse(D.overview.as_of) - S.days * 864e5;
+  (t?.features || []).filter(f => f.properties.kind === 'ping' && Date.parse(f.properties.ts) >= cutoff && shown(f.properties.lon, f.properties.lat)).forEach(f => {
+    const p = xy(f.properties.lon, f.properties.lat); if (p) gHist.append('circle').attr('class','hist').attr('cx', p[0]).attr('cy', p[1]).attr('opacity', .6); });
+  restyle();
+}
+function restyle(){
+  gShip.selectAll('g.s').attr('transform', function(){ const sel = d3.select(this).datum().properties.vessel_id === S.vessel, s = (sel ? 1.5 : 1.1) / Math.sqrt(K);
+    return `translate(${this.getAttribute('data-x')},${this.getAttribute('data-y')}) rotate(${this.getAttribute('data-r')}) scale(${s})`; });
+  gShip.selectAll('circle.ship').attr('r', 4.6);
+  gLab.selectAll('text').style('font-size', (10.5 / K) + 'px').attr('dx', 8 / K).attr('dy', 3.5 / K).style('stroke-width', (3 / K) + 'px')
+    .style('display', f => (K >= 3 || f.ids.includes(S.vessel)) ? null : 'none');
+  const sym = d3.symbol().type(d3.symbolTriangle).size(420 / (K*K));
+  gMk.selectAll('path').attr('d', sym()).attr('transform', function(){ return `translate(${this.getAttribute('data-x')},${this.getAttribute('data-y')})`; });
+  gHist.selectAll('circle').attr('r', 2.3 / K);
+}
+function flyTo(lon, lat, k = 5){ const [w, h] = size(); const p = xy(lon, lat); if (!p) return;
+  const cx = S.vessel ? (w + 362) / 2 : w / 2;
+  svg.transition().duration(700).call(zoom.transform, d3.zoomIdentity.translate(cx, h/2).scale(k).translate(-p[0], -p[1])); }
+const tipEl = document.getElementById('tip');
+function tip(e, html){ const r = document.getElementById('mapwrap').getBoundingClientRect(); tipEl.innerHTML = html; tipEl.style.display = 'block'; tipEl.style.left = (e.clientX - r.left + 14) + 'px'; tipEl.style.top = (e.clientY - r.top + 10) + 'px'; }
+function hideTip(){ tipEl.style.display = 'none'; }
+svg.on('click', () => { if (S.vessel || S.finding) { S.vessel = null; S.finding = null; renderMap(); } });
+document.querySelectorAll('[data-proj]').forEach(b => b.onclick = () => { S.proj = b.dataset.proj;
+  document.querySelectorAll('[data-proj]').forEach(x => x.classList.toggle('on', x === b)); svg.call(zoom.transform, d3.zoomIdentity); buildMap(); renderMap(); });
+document.getElementById('reset').onclick = () => svg.transition().duration(500).call(zoom.transform, d3.zoomIdentity);
+window.addEventListener('resize', () => { mapBuilt = false; if (S.view === 'map') { svg.call(zoom.transform, d3.zoomIdentity); renderMap(); } });
+function renderLegend(){
+  const c = (fill, op, stroke) => `<svg width="12" height="12"><circle cx="6" cy="6" r="4.5" fill="${fill}" fill-opacity="${op}" stroke="${stroke}" stroke-width="1.5"/></svg>`;
+  document.getElementById('legend').innerHTML = `<div class="h">Risk</div><div>${c(COL.high,1,'#0c1520')}High (12+)</div><div>${c(COL.watch,1,'#0c1520')}Watch (5–12)</div><div>${c(COL.low,1,'#0c1520')}Low</div>
+    <div class="h">Last reported</div><div>${c('#5d6f83',1,'#5d6f83')}Within 7 days</div><div>${c('#5d6f83',.5,'#5d6f83')}7–30 days</div><div>${c('#fff',1,'#5d6f83')}Over 30 days</div>
+    ${S.finding ? `<div class="h">Finding</div><div><svg width="12" height="12"><path d="M6 1.5L11 10.5H1Z" fill="none" stroke="${COL.high}" stroke-width="1.6"/></svg>Went dark here</div><div><svg width="12" height="12"><path d="M6 1.5L11 10.5H1Z" fill="${COL.high}"/></svg>Reappeared here</div>` : ''}
+    ${S.vessel ? `<div class="h">Selected ship</div><div><svg width="12" height="12"><circle cx="6" cy="6" r="2.5" fill="#4fb0ff"/></svg>Reported positions</div><div><svg width="18" height="8"><line x1="1" y1="4" x2="17" y2="4" stroke="#4fb0ff" stroke-width="2.4"/></svg>Previous route (sea lanes)</div><div><svg width="18" height="8"><line x1="1" y1="4" x2="17" y2="4" stroke="#4fb0ff" stroke-width="2.4" stroke-dasharray="2 4"/></svg>Through the ice, beyond the lanes</div>` : ''}
+    ${(!S.focus || S.vessel) ? `<div style="max-width:190px;margin-top:4px;font-size:10.5px">Routes join reported positions along sea lanes: an estimate of the path, not a recorded track.</div>` : ''}
+    ${S.lanes ? `<div><svg width="18" height="8"><line x1="1" y1="4" x2="17" y2="4" stroke="#6f86a3" stroke-width="1" opacity=".7"/></svg>Shipping lanes (MARNET)</div>` : ''}`;
+}
+function openVessel(id){ S.vessel = id; S.finding = null; if (S.view !== 'map') go('map'); else renderMap();
+  const f = D.fleet.features.find(x => x.properties.vessel_id === id); if (f) setTimeout(() => flyTo(...f.geometry.coordinates, 5), 30); }
+function showFinding(id){ const a = D.anomalies.find(x => x.id === id); S.finding = id; S.vessel = a?.vessel_id || null; go('map');
+  if (a && a.lat != null) setTimeout(() => flyTo(a.lat2 != null ? (a.lon + a.lon2)/2 : a.lon, a.lat2 != null ? (a.lat + a.lat2)/2 : a.lat, a.lat2 != null ? 3 : 6), 30); }
+async function renderCard(){
+  const el = document.getElementById('vcard');
+  if (!S.vessel) { el.classList.remove('on'); return; }
+  const v = await api(`/api/vessels/${S.vessel}`); if (!v) { el.classList.remove('on'); return; }
+  const f = D.fleet.features.find(x => x.properties.vessel_id === v.id)?.properties, lp = v.last_position;
+  const real = v.recent_anomalies.filter(a => a.severity !== 'info'), conflicts = v.recent_anomalies.filter(a => a.severity === 'info').length;
+  const vf = v.imo ? `https://www.vesselfinder.com/vessels/details/${v.imo}` : null, mt = v.osint_links.find(l => l.source === 'MarineTraffic')?.url;
+  const na = s => `<dd class="na">${s}</dd>`;
+  const sel = S.finding ? D.anomalies.find(x => x.id === S.finding) : null;
+  el.innerHTML = `
+    <div class="vh"><div><div class="t">${esc(v.name)}</div><div class="s">${esc(v.ship_type || 'Type unknown')} · ${esc(v.flag || 'flag unknown')}</div></div><button class="x" id="vx">×</button></div>
+    <div class="photo">No photo in the team database.<span>${vf ? `<a href="${vf}" target="_blank" rel="noopener">Photos on VesselFinder ↗</a>` : ''}${mt ? ` · <a href="${mt}" target="_blank" rel="noopener">MarineTraffic ↗</a>` : ''}</span></div>
+    <div class="vbody">
+      ${sel ? `<div style="padding:10px 14px;background:#fff8ec;border-bottom:1px solid var(--line);font-size:12.5px"><span class="pill p-${sel.severity}">${sel.severity}</span> <b>${esc(sel.label)}</b> · ${fmtDate(sel.start_ts)}<div style="margin-top:3px">${esc(sel.summary)}</div></div>` : ''}
+      <div class="quick">
+        <div><span>Risk</span><b><span class="pill ${v.risk_score ? 'p-' + band(v.risk_score) : 'p-none'}">${v.risk_score || 'none'}</span></b></div>
+        <div><span>Last report</span><b>${lp ? fmtDate(lp.ts) : '—'}</b><span>${f ? ago(f.age_hours) : ''}</span></div>
+        <div><span>Activity</span><b>${esc(lp?.nav_status || '—')}</b></div>
+        <div><span>Position</span><b style="font-family:var(--mono);font-size:12px">${lp ? fmtLat(lp.lat, lp.lon) : '—'}</b></div>
+        <div><span>Broadcast as</span><b>${esc(lp?.name || '—')}</b><span>${esc(lp?.mmsi || '')}</span></div>
+        <div><span>Source</span><b>${esc(lp?.source === 'gfw' ? 'Global Fishing Watch' : lp?.source || '—')}</b></div>
+      </div>
+      <details open><summary>Vessel particulars</summary><div class="dbody"><dl class="kv">
+        <dt>IMO</dt>${v.imo ? `<dd>${esc(v.imo)}</dd>` : na('none on file')}<dt>MMSI</dt><dd>${esc(v.mmsi || '—')}</dd>
+        <dt>Call sign</dt>${v.callsign ? `<dd>${esc(v.callsign)}</dd>` : na('none on file')}<dt>Flag</dt><dd>${esc(v.flag || '—')}</dd>
+        <dt>Gross tonnage</dt>${v.gross_tonnage ? `<dd>${Math.round(v.gross_tonnage).toLocaleString()}</dd>` : na('none on file')}
+        <dt>Built</dt>${v.year_built ? `<dd>${v.year_built}</dd>` : na('none on file')}
+        <dt>Length</dt>${v.length_m ? `<dd>${v.length_m} m</dd>` : na('not in registry yet')}<dt>Air draft</dt>${v.air_draft_m ? `<dd>${v.air_draft_m} m</dd>` : na('not in registry yet')}</dl></div></details>
+      <details ${real.length ? 'open' : ''}><summary>Findings (${real.length})</summary><div class="dbody">
+        ${real.map(a => `<div class="f" data-f="${a.id}"><div class="fh"><span class="pill p-${a.severity}">${a.severity}</span><span class="d">${fmtDate(a.start_ts)}</span></div><div>${esc(a.summary)}</div></div>`).join('') || '<div class="sub">No findings.</div>'}
+        ${conflicts ? `<div class="sub" style="margin-top:6px">${conflicts} conflicting GFW record(s): this MMSI was also used by another ship. Not counted in risk.</div>` : ''}</div></details>
+      <details><summary>Names and MMSIs used (${v.identities.length})</summary><div class="dbody"><table class="t"><tr><th>Name</th><th>MMSI</th><th>Seen</th></tr>
+        ${[...v.identities].reverse().map(i => `<tr><td>${esc(i.name)}</td><td class="m">${esc(i.mmsi)}</td><td class="m">${i.first_seen.slice(0,7)} – ${i.last_seen.slice(0,7)}</td></tr>`).join('')}</table></div></details>
+      <details><summary>Imagery and 3D models (${v.references.length})</summary><div class="dbody">
+        ${v.references.map(r => `<div class="ref"><b>${esc(r.kind === 'model' ? '3D model' : r.kind.toUpperCase())}</b> · ${esc(r.name)} ${r.link && r.usable ? `<a href="${esc(r.link)}" target="_blank" rel="noopener">open ↗</a>` : ''}
+          <div><span class="pill ${r.usable ? 'p-ok' : 'p-bad'}">${r.usable ? 'usable' : 'not usable yet'}</span></div>
+          ${r.issues.map(i => `<div class="issue ${i.level === 'warning' ? 'w' : ''}">${esc(i.text)}</div>`).join('')}</div>`).join('') || '<div class="sub">None in the team database.</div>'}</div></details>
+    </div>`;
+  el.classList.add('on');
+  document.getElementById('vx').onclick = () => { S.vessel = null; S.finding = null; renderMap(); };
+  el.querySelectorAll('[data-f]').forEach(r => r.onclick = () => showFinding(+r.dataset.f));
+}
+
+/* VESSELS */
+function renderVessels(){
+  const rows = [...D.fleet.features].map(f => f.properties).sort((a, b) => b.risk_score - a.risk_score || a.age_hours - b.age_hours);
+  const nf = id => realFindings().filter(a => a.vessel_id === id).length;
+  document.getElementById('vessels').innerHTML = `<h2>Vessels</h2><p class="lead">The ${rows.length} watch-list ships, highest risk first. Risk adds up each ship's findings, with the last 90 days counting double. Click a row to see the ship on the map.</p>
+  <div class="card" style="padding:6px 8px;overflow:auto"><table class="t"><tr><th>Ship</th><th>Type</th><th>Flag</th><th>IMO</th><th>MMSI</th><th>Last reported</th><th>Activity</th><th>Findings</th><th>Risk</th></tr>
+  ${rows.map(p => `<tr class="click" data-v="${p.vessel_id}"><td><b>${esc(p.name)}</b></td><td>${esc(p.ship_type || '—')}</td><td>${esc(p.flag || '—')}</td><td class="m">${esc(p.imo || '—')}</td><td class="m">${esc(p.mmsi)}</td>
+    <td>${fmtDate(p.ts)}<div class="sub">${ago(p.age_hours)}</div></td><td>${esc(p.status || '—')}</td><td>${nf(p.vessel_id) || '—'}</td>
+    <td><span class="pill ${p.risk_score ? 'p-' + band(p.risk_score) : 'p-none'}">${p.risk_score || '0'}</span></td></tr>`).join('')}</table></div>`;
+  document.querySelectorAll('#vessels [data-v]').forEach(r => r.onclick = () => openVessel(+r.dataset.v));
+}
+
+/* FINDINGS */
+function renderFindings(){
+  const all = D.anomalies, nInfo = all.filter(a => a.severity === 'info').length;
+  const base = all.filter(a => S.showInfo || a.severity !== 'info');
+  const kinds = d3.rollups(base, v => v.length, a => a.kind).sort((a,b) => b[1]-a[1]);
+  const list = base.filter(a => !S.kind || a.kind === S.kind);
+  document.getElementById('findings').innerHTML = `<h2>Findings</h2><p class="lead">What the ships did that needs explaining, newest first. "Show on map" marks where it happened; for AIS-off events, where the ship went dark and where it reappeared.</p>
+  <div class="filters"><button class="${!S.kind?'on':''}" data-k="">All · ${base.length}</button>${kinds.map(([k,n]) => `<button class="${S.kind===k?'on':''}" data-k="${k}">${esc(label(k))} · ${n}</button>`).join('')}</div>
+  ${nInfo ? `<label class="sub" style="display:flex;gap:8px;align-items:center;margin-bottom:12px"><input type="checkbox" id="info" ${S.showInfo?'checked':''}> Also show ${nInfo} conflicting GFW records (MMSI used by another ship; not counted in risk)</label>` : ''}
+  <div class="card" style="padding:6px 8px;overflow:auto"><table class="t"><tr><th>Date</th><th>Ship</th><th>What</th><th>Details</th><th>Source</th><th></th></tr>
+  ${list.map(a => `<tr><td class="m">${fmtDate(a.start_ts)}</td><td><b>${esc(a.vessel_name || 'MMSI ' + a.mmsi)}</b></td><td><span class="pill p-${a.severity}">${a.severity}</span><div>${esc(a.label)}</div></td>
+    <td>${esc(a.summary)}</td><td class="sub">${esc((a.details?.sources || [a.source]).join(', '))}</td><td>${a.lat != null ? `<button class="chip" data-f="${a.id}">Show on map</button>` : ''}</td></tr>`).join('')}</table></div>`;
+  document.querySelectorAll('#findings [data-k]').forEach(b => b.onclick = () => { S.kind = b.dataset.k || null; renderFindings(); });
+  const cb = document.getElementById('info'); if (cb) cb.onchange = () => { S.showInfo = cb.checked; S.kind = null; renderFindings(); };
+  document.querySelectorAll('#findings [data-f]').forEach(b => b.onclick = () => showFinding(+b.dataset.f));
+}
+
+/* IMAGERY: radar chip | optical reference | candidate ship particulars and checks */
+const COMPS = [['ais_position','Location','AIS position at image time'],['model_reference','3D model','SAR vs reference render (physical · CAD · electronic)'],
+  ['features','Ship features','Flag, radar system, superstructure...'],['size_class','Length','SAR size class vs registry'],['shadow_height','Height','Shadow vs air draft (sun permitting)']];
+const W = {ais_position:.30, model_reference:.25, features:.20, size_class:.15, shadow_height:.10};
+function compareCard(c){
+  // identified ship, else (dark / ambiguous) the best look-alike from the registry, else the nearest AIS candidate
+  const look = !c.identified_vessel && c.lookalikes?.length ? c.lookalikes[0] : null;
+  const top = c.identified_vessel ? c.candidates.find(x => x.vessel.id === c.identified_vessel.id) : (look || c.candidates[0]), refs = top ? (D.refs || []).filter(r => r.vessel_id === top.vessel.id) : [];
+  const opt = c.optical, optRef = refs.find(r => r.kind === 'optical' && r.usable);
+  return `<div class="card" style="margin-bottom:16px">
+    <div style="display:flex;gap:12px;align-items:baseline;margin-bottom:12px;flex-wrap:wrap"><h2 style="margin:0">${esc(c.headline)}</h2><span class="pill p-none">${c.verdict.replace('_',' ')}</span>
+      <span class="sub" style="margin-left:auto">${fmtTime(c.sar.acquired_at)} · ${fmtLat(c.position.lat, c.position.lon)}</span></div>
+    <div class="cmp">
+      <div class="pane"><h4>Radar (SAR)</h4><div class="img">${c.sar.image_url ? `<img src="${esc(c.sar.image_url)}" alt="SAR chip">` : `${esc(c.sar.satellite || 'SAR')}<br>no chip image stored`}</div>
+        <dl class="kv" style="margin-top:8px"><dt>Length</dt><dd>${c.sar.length_m ? Math.round(c.sar.length_m) + ' ± ' + Math.round(c.sar.length_err_m || 15) + ' m' : '—'}</dd>
+        <dt>Size class</dt><dd>${c.size_class?.[0] ? esc(c.size_class[0].class) + ' (' + c.size_class[0].probability.toFixed(2) + ')' : '—'}</dd></dl></div>
+      <div class="pane"><h4>Optical reference</h4><div class="img">${opt?.image_url ? `<img src="${esc(opt.image_url)}" alt="optical">` : optRef ? esc(optRef.name) : 'No usable optical image of this ship yet'}</div>
+        <div class="sub" style="margin-top:8px">${c.shadow ? `Sun ${c.shadow.sun_elevation_deg}° · ${c.shadow.usable ? 'shadow height ' + c.shadow.height_m + ' ± ' + c.shadow.height_err_m + ' m' : esc(c.shadow.notes[0] || 'shadow not usable')}` : 'No optical image linked to this detection'}</div></div>
+      <div class="pane"><h4>${look ? 'Best look-alike: ' : ''}${top ? esc(top.vessel.name) + (top.vessel.flag ? ' · ' + esc(top.vessel.flag) : '') : 'Candidate ship'}</h4>
+        ${look && look.ais_reports_km_away != null ? `<div class="sub" style="margin-bottom:6px">Its AIS places it ${Math.round(look.ais_reports_km_away).toLocaleString()} km away at the image time</div>` : ''}
+        ${top ? `<div><b>Confidence ${top.confidence.toFixed(2)}</b> <span class="sub">from ${Math.round(top.coverage*100)}% of the evidence</span></div><div class="conf"><i style="width:${top.confidence*100}%"></i></div>
+        <table class="t"><tr><th>Check</th><th>Result</th><th>Score</th></tr>${COMPS.map(([k, n, d]) => { const x = top.comparatives[k];
+          return `<tr><td><b>${n}</b><div class="sub">${d}</div></td><td>${x ? esc(x.detail) : `<span class="sub">${esc(((top.missing || []).find(m => m.startsWith(k)) || (k === 'ais_position' && look ? ': not here by AIS' : '')).split(': ').slice(1).join(': ') || 'not available')}</span>`}</td>
+          <td>${x ? `<span class="fits ${x.score >= .5 ? 'y' : 'n'}">${x.score.toFixed(2)}</span>` : '<span class="fits na">n/a</span>'}</td></tr>`; }).join('')}</table>` : '<div class="sub">No AIS ship near this target.</div>'}
+      </div></div>
+    ${c.flags.map(f => `<div style="margin-top:10px;color:#a96d00;font-size:13px">⚑ ${esc(f)}</div>`).join('')}</div>`;
+}
+async function renderImagery(){
+  const el = document.getElementById('imagery'), dets = D.sar || [], refs = D.refs || [];
+  const cards = await Promise.all(dets.map(d => api(`/api/sar/detections/${d.detection_id}`)));
+  el.innerHTML = `<h2>Imagery</h2><p class="lead">Each radar (SAR) target is compared against the ships that could be there. Confidence is the weighted average of the checks that could be made, and every card shows how much of the evidence was available.</p>
+  ${cards.filter(Boolean).map(compareCard).join('') || `<div class="card" style="margin-bottom:16px"><div class="empty"><b>No radar detections yet.</b> When a Sentinel-1 image is processed (or GFW SAR detections are imported), each ship-shaped target appears here side by side: radar chip, optical reference and the candidate ship's particulars, each check scored.</div></div>`}
+  <div class="grid" style="grid-template-columns:1.6fr 1fr">
+    <div class="card"><h2 style="font-size:16px">Imagery and 3D-model records in the team database</h2><p class="sub" style="margin:0 0 10px">Every record is checked before it can count as evidence. "Not usable yet" means at least one problem has to be fixed first.</p>
+      <table class="t"><tr><th>Record</th><th>Ship</th><th>Status</th></tr>${refs.map(r => `<tr><td><b>${esc(r.kind === 'model' ? '3D model' : r.kind.toUpperCase())}</b> · ${esc(r.name)}<div class="sub">${esc([r.platform, r.provider, r.date].filter(Boolean).join(' · '))}</div>
+        ${r.issues.map(i => `<div class="issue ${i.level === 'warning' ? 'w' : ''}">${esc(i.text)}</div>`).join('')}</td><td>${esc(r.vessel_name || '—')}</td><td><span class="pill ${r.usable ? 'p-ok' : 'p-bad'}">${r.usable ? 'usable' : 'not usable yet'}</span></td></tr>`).join('')}</table></div>
+    <div><div class="card" style="margin-bottom:16px"><h2 style="font-size:16px">How confidence is built</h2>
+      <table class="t">${COMPS.map(([k, n, d]) => `<tr><td><b>${n}</b><div class="sub">${d}</div></td><td class="m">${W[k].toFixed(2)}</td></tr>`).join('')}</table>
+      <p class="sub" style="margin-bottom:0">A match needs at least two checks. Location spoofing is only flagged when one ship clearly beats every other on two or more checks.</p></div>
+    <div class="card"><h2 style="font-size:16px">Shadow check</h2><p class="sub" style="margin-top:0">Is the sun high enough for a shadow-height check?</p>
+      <div class="form" style="grid-template-columns:1fr 1fr"><label>Latitude<input id="sl" value="70.0"></label><label>Longitude<input id="so" value="45.0"></label>
+      <label style="grid-column:1/-1">Image time (UTC)<input id="st" type="datetime-local" value="${new Date().toISOString().slice(0,16)}"></label></div><div id="sres" style="margin-top:10px"></div></div></div></div>`;
+  const upd = () => { const lat = +document.getElementById('sl').value, lon = +document.getElementById('so').value, t = new Date(document.getElementById('st').value + 'Z');
+    const out = document.getElementById('sres'); if (!isFinite(lat) || !isFinite(lon) || isNaN(t)) { out.textContent = 'Enter a position and time.'; return; }
+    const e = sunElev(t, lat, lon), v = e <= 0 ? [COL.high, 'No: sun below the horizon'] : e < 5 ? [COL.watch, 'Not reliable: sun under 5°'] : [COL.low, 'Yes'];
+    out.innerHTML = `<span class="big">${e.toFixed(1)}°</span> <span class="sub">sun elevation</span><div style="color:${v[0]};font-weight:600">${v[1]}</div>`; };
+  ['sl','so','st'].forEach(id => document.getElementById(id).oninput = upd); upd();
+}
+function sunElev(date, lat, lon){
+  const doy = Math.floor((Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()) - Date.UTC(date.getUTCFullYear(),0,0)) / 864e5), hour = date.getUTCHours() + date.getUTCMinutes()/60;
+  const g = 2*Math.PI/365 * (doy - 1 + (hour - 12)/24);
+  const eqt = 229.18*(0.000075 + 0.001868*Math.cos(g) - 0.032077*Math.sin(g) - 0.014615*Math.cos(2*g) - 0.040849*Math.sin(2*g));
+  const decl = 0.006918 - 0.399912*Math.cos(g) + 0.070257*Math.sin(g) - 0.006758*Math.cos(2*g) + 0.000907*Math.sin(2*g) - 0.002697*Math.cos(3*g) + 0.00148*Math.sin(3*g);
+  const ha = ((hour*60 + eqt + 4*lon)/4 - 180) * Math.PI/180, phi = lat*Math.PI/180;
+  return 90 - Math.acos(Math.min(1, Math.max(-1, Math.sin(phi)*Math.sin(decl) + Math.cos(phi)*Math.cos(decl)*Math.cos(ha))))*180/Math.PI;
+}
+
+/* DATA */
+function renderData(){
+  const sev = {error:'p-bad', warning:'p-medium', info:'p-none'};
+  document.getElementById('data').innerHTML = `<h2>Data</h2><p class="lead">Where every number on this site comes from, how fresh it is, and the problems already found in the sources. Real data only: nothing is simulated.</p>
+  <div class="card" style="margin-bottom:16px;padding:6px 8px"><table class="t"><tr><th>Source</th><th>What it gives</th><th>Records</th><th>Covers</th></tr>
+    ${D.sources.map(s => `<tr><td><b>${s.url ? `<a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.name)}</a>` : esc(s.name)}</b></td><td>${esc(s.what)}</td><td class="m">${s.records.toLocaleString()}</td><td class="m">${s.first ? fmtDate(s.first) + ' – ' + fmtDate(s.last) : '—'}</td></tr>`).join('')}</table></div>
+  <div class="card" style="padding:6px 8px"><div style="padding:10px 8px 4px"><h2 style="font-size:16px">Known data problems</h2><p class="sub" style="margin:0">Found automatically in the team database. Fixing these unlocks the imagery comparison.</p></div>
+    <table class="t"><tr><th></th><th>Where</th><th>Record</th><th>Problem</th></tr>${D.checks.map(c => `<tr><td><span class="pill ${sev[c.severity] || 'p-none'}">${esc(c.severity)}</span></td><td>${esc(c.table)}${c.field ? '<div class="sub">' + esc(c.field) + '</div>' : ''}</td><td>${esc(c.record)}</td><td>${esc(c.problem)}</td></tr>`).join('')}</table></div>`;
+}
+
+/* search */
+const q = document.getElementById('q'), res = document.getElementById('results');
+q.oninput = () => { const s = q.value.trim().toLowerCase(); if (!s) { res.style.display = 'none'; return; }
+  const hits = D.watch.filter(v => [v.name, v.imo, v.mmsi].some(x => String(x || '').toLowerCase().includes(s))).slice(0, 12);
+  res.innerHTML = hits.map(v => `<div data-v="${v.id}"><span>${esc(v.name)}</span><span class="sub">${esc(v.imo || v.mmsi || '')}</span></div>`).join('') || '<div class="sub">No watch-list ship matches</div>';
+  res.style.display = 'block'; res.querySelectorAll('[data-v]').forEach(d => d.onclick = () => { res.style.display = 'none'; q.value = ''; openVessel(+d.dataset.v); }); };
+document.addEventListener('click', e => { if (!e.target.closest('.search')) res.style.display = 'none'; });
+
+(async function(){
+  const r = await Promise.all(['/api/overview','/api/overview/fleet','/api/spoofing/anomalies?limit=500','/api/spoofing/kinds','/api/sar/detections',
+    '/api/vessels?watchlist=true','/api/data/references','/api/data/sources','/api/data/checks','/api/data/routes?days=365','/api/data/shipping-lanes'].map(api));
+  [D.overview, D.fleet, D.anomalies, D.kinds, D.sar, D.watch, D.refs, D.sources, D.checks, D.routes, D.lanes] = r;
+  const h = location.hash.slice(1); if (h === 'home' || TABS.some(t => t[0] === h)) S.view = h;
+  show();
+})();
+</script>
+</body>
+</html>

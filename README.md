@@ -1,4 +1,10 @@
 # Arctic-Database-Interface
+
+> **Website v2 (Nov 2026).** The site at the repo root (`index.html`) is now the new Arctic Vessel Watch:
+> cover page plus Map, Vessels, Findings, Imagery and Data tabs, built from real data only by `backend/`
+> (see `backend/README.md`). The daily GitHub Action rebuilds it after downloading new data.
+> The original viewer is still available at `/v1/`, with prediction lines and "impossible move" scoring switched off.
+
 Ongoing code for Eyes on the Arctic Fall 2026
 
 Tracks Russian-linked tankers in the Arctic, flags **dark activity** (AIS switched off,

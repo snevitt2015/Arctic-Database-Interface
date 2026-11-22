@@ -109,10 +109,11 @@ export const EVENT_TYPES = {
 
 // Extra data layers (drawn from our own data, not tiles)
 export const DATA_LAYERS = [
-  { id: "tracks",      label: "Tracks (events < 12 h apart)", on: true },
-  { id: "darkgaps",    label: "Dark gaps (AIS off → on)",     on: true },
+  // Off by default (2026-11-22): these draw straight lines between positions, which cross land.
+  { id: "tracks",      label: "Tracks (straight lines between events < 12 h apart)", on: false },
+  { id: "darkgaps",    label: "Dark gaps (straight line AIS off → on)",     on: false },
   { id: "sequence",    label: "Port-to-port sequence (straight lines, not real route)", on: false },
-  { id: "predictions", label: "Predicted positions",          on: true },
+  { id: "predictions", label: "Predicted positions (ignore coastlines - not reliable)", on: false },
   { id: "ports",       label: "Ports",                        on: true },
   { id: "imagery",     label: "Satellite & SAR images (Capstone DB)", on: true },
   { id: "cues",        label: "Pings: search areas, detections",   on: true },
@@ -124,7 +125,7 @@ export const DATA_LAYERS = [
 // ---------------------------------------------------------------------------
 export const VECTOR_LAYERS = [
   { id: "routes", label: "Arctic sea routes (schematic - not for navigation)", url: "data/sea_routes.geojson",
-    on: ["nsr", "nep", "nwp", "tsr", "rivers", "circle"], dashed: ["tsr", "circle"], thin: ["circle", "rivers"] },
+    on: [], dashed: ["tsr", "circle"], thin: ["circle", "rivers"] },
 ];
 
 // ---------------------------------------------------------------------------
@@ -136,8 +137,10 @@ export const FOCUS = {
   RECENT_DAYS: 90,          // recent signals count double
   FEED_DAYS: 60,            // "What's new" lists events this close to the latest data
   WEIGHTS: {
-    jump: 2,                // each impossible move (possible spoofing / shared identity), up to JUMP_CAP
-    JUMP_CAP: 10,
+    // 0 since 2026-11-22: an audit found every "impossible move" in the GFW data was an MMSI also used by
+    // another ship (records attributed to the wrong hull), not spoofing. See claude/arctic-backend-v2.md.
+    jump: 0,
+    JUMP_CAP: 0,
     dark: 1,                // each AIS-off period
     darkLong: 2,            // extra for each period over 24 h
     extraMmsi: 1.5,         // each MMSI beyond the first
