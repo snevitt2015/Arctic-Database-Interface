@@ -39,11 +39,20 @@ jobs:
           CDSE_CLIENT_ID: ${{ secrets.CDSE_CLIENT_ID }}
           CDSE_CLIENT_SECRET: ${{ secrets.CDSE_CLIENT_SECRET }}
 
+      - name: Rebuild the website (backend v2, real data only)
+        run: |
+          cd "$DIR"
+          pip install -r backend/requirements.txt
+          cd backend
+          python -m pytest -q
+          python scripts/import_v1.py --v1 ..
+          python scripts/build_frontend.py --site ../index.html
+
       - name: Save data
         run: |
           cd "$DIR"
           git config user.name "github-actions"
           git config user.email "github-actions@users.noreply.github.com"
-          git add data/positions.csv data/output_*.csv data/chips || true
+          git add data/positions.csv data/output_*.csv data/chips index.html || true
           git diff --cached --quiet || git commit -m "Daily OSINT update $(date -u +%F)"
           git push

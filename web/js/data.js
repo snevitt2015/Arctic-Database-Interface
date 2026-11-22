@@ -175,7 +175,7 @@ export function computeFeed(store) {
   const from = store.maxT - FOCUS.FEED_DAYS * 864e5, items = [];
   for (const e of store.events) {
     if (e.t < from) continue;
-    if (e.jump) items.push({ ...pick(e), kind: "jump", sev: "red",
+    if (e.jump && FOCUS.WEIGHTS.jump > 0) items.push({ ...pick(e), kind: "jump", sev: "red",
       text: `Impossible move${e.calcSpeed ? ` (implied ${Math.round(e.calcSpeed)} kn)` : ""} - possible spoofing`, event: e.id });
     else if (e.ev === "ais_off") {
       const d = store.dark.find((x) => x.vessel === e.vessel && Math.abs(x.t - e.t) < 36e5);

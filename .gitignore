@@ -19,3 +19,9 @@ data/imports/*
 lab_out/
 runs/
 *.pt
+
+# backend v2 local database (rebuilt from data/ by scripts/import_v1.py)
+backend/*.db
+backend/*.db-*
+backend/.env
+backend/.venv/

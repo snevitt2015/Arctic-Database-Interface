@@ -1,0 +1,19 @@
+fastapi>=0.115
+uvicorn[standard]>=0.30
+sqlalchemy>=2.0
+pydantic>=2.7
+python-multipart>=0.0.9
+python-dotenv>=1.0
+requests>=2.31
+websockets>=12.0
+pyais>=2.6
+numpy>=1.24
+pandas>=2.0
+scipy>=1.11
+tifffile>=2024.1
+openpyxl>=3.1
+# Postgres in production (DATABASE_URL=postgresql+psycopg://...):
+# psycopg[binary]>=3.1
+# tests
+pytest>=8.0
+httpx>=0.27
