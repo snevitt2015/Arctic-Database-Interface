@@ -71,6 +71,12 @@ h2{font-size:20px;margin:0 0 4px}
 .ship{cursor:pointer;stroke-width:1.3px;vector-effect:non-scaling-stroke}
 .vlabel{fill:#d6e1ee;font-weight:500;paint-order:stroke;stroke:#14202c;pointer-events:none}
 .hist{fill:#4fb0ff;pointer-events:none}
+.lane{fill:none;stroke:#6f86a3;stroke-width:.8px;opacity:.35;vector-effect:non-scaling-stroke;pointer-events:none}
+.leg{fill:none;stroke-linecap:round;vector-effect:non-scaling-stroke}
+.leg.hit{stroke:transparent;stroke-width:9px;cursor:pointer}
+.ctl .sep{width:1px;background:rgba(255,255,255,.25);margin:0 2px}
+.ctl select{background:#fff;border:1px solid var(--line2);border-radius:6px;padding:4px 8px;font-size:12px;color:var(--text)}
+.hint{position:absolute;top:56px;right:12px;background:rgba(255,255,255,.95);border-radius:8px;padding:7px 11px;font-size:12px;color:var(--muted);box-shadow:0 2px 10px rgba(0,0,0,.2);display:none}
 .mk{cursor:pointer;vector-effect:non-scaling-stroke}
 .ctl{position:absolute;top:12px;right:12px;display:flex;gap:6px}
 .chip{background:#fff;border:1px solid var(--line2);border-radius:6px;padding:5px 11px;font-size:12px;color:var(--muted)}
@@ -146,7 +152,13 @@ table.t tr.click:hover td{background:#f3f7fb}
 <section class="view" id="v-home"></section>
 <section class="view" id="v-map">
   <div id="mapwrap"><svg id="map"></svg>
-    <div class="ctl"><button class="chip on" data-proj="world">World</button><button class="chip" data-proj="arctic">Arctic</button><button class="chip" id="reset">Reset</button></div>
+    <div class="ctl">
+      <button class="chip" id="focus" title="Focus: only the selected ship's previous routes; other ships fade back">Focus: on</button>
+      <select id="period" title="How far back routes go"><option value="90">Routes: 3 months</option><option value="180">Routes: 6 months</option><option value="365" selected>Routes: 12 months</option></select>
+      <button class="chip" id="lanes" title="The open global shipping-lane network (Eurostat MARNET)">Shipping lanes</button>
+      <span class="sep"></span>
+      <button class="chip on" data-proj="world">World</button><button class="chip" data-proj="arctic">Arctic</button><button class="chip" id="reset">Reset</button></div>
+    <div class="hint" id="hint"></div>
     <div class="legend" id="legend"></div><div class="tip" id="tip"></div><div class="vcard" id="vcard"></div>
   </div>
 </section>
@@ -168,7 +180,8 @@ const band = r => r >= 12 ? 'high' : r >= 5 ? 'watch' : 'low';
 const COL = {high:'#e0453f', watch:'#e39b17', medium:'#e39b17', low:'#1aa58f', info:'#7f93ad'};
 const age3 = h => h <= 24*7 ? 1 : h <= 24*30 ? 2 : 3;
 const D = {};
-const S = {view:'home', vessel:null, finding:null, proj:'world', kind:null, showInfo:false};
+const S = {view:'home', vessel:null, finding:null, proj:'world', kind:null, showInfo:false, focus:true, lanes:false, days:365};
+try { const f = localStorage.getItem('avw-focus'); if (f !== null) S.focus = f === '1'; } catch(e) {}
 const realFindings = () => (D.anomalies || []).filter(a => a.severity !== 'info');
 const label = k => (D.kinds.find(x => x.kind === k) || {}).label || k;
 
@@ -215,7 +228,7 @@ function renderHome(){
 
 /* MAP */
 const svg = d3.select('#map'), root = svg.append('g');
-const gBase = root.append('g'), gHist = root.append('g'), gMk = root.append('g'), gShip = root.append('g'), gLab = root.append('g');
+const gBase = root.append('g'), gLanes = root.append('g'), gRoutes = root.append('g'), gHist = root.append('g'), gMk = root.append('g'), gShip = root.append('g'), gLab = root.append('g');
 let projection, path, K = 1, mapBuilt = false;
 const zoom = d3.zoom().scaleExtent([1, 40]).on('zoom', e => { K = e.transform.k; root.attr('transform', e.transform); restyle(); });
 svg.call(zoom);
@@ -233,10 +246,46 @@ function buildMap(){
   gBase.append('path').datum(d3.geoGraticule10()).attr('class','grat').attr('d', path);
   gBase.append('path').datum(topojson.feature(LAND, LAND.objects.land)).attr('class','land').attr('d', path);
   gBase.append('path').datum({type:'LineString', coordinates: d3.range(-180, 181, 2).map(x => [x, 66.56])}).attr('class','c66').attr('d', path);
-  gShip.selectAll('*').remove(); gLab.selectAll('*').remove(); gMk.selectAll('*').remove();
+  gShip.selectAll('*').remove(); gLab.selectAll('*').remove(); gMk.selectAll('*').remove(); gLanes.selectAll('*').remove(); gRoutes.selectAll('*').remove();
   mapBuilt = true;
 }
-function renderMap(){ if (!mapBuilt) buildMap(); drawShips(); drawMarkers(); drawHistory(); renderLegend(); renderCard(); }
+function renderMap(){ if (!mapBuilt) buildMap(); syncControls(); drawLanes(); drawRoutes(); drawShips(); drawMarkers(); drawHistory(); renderLegend(); renderCard(); }
+function syncControls(){
+  const f = document.getElementById('focus'); f.textContent = 'Focus: ' + (S.focus ? 'on' : 'off'); f.classList.toggle('on', S.focus);
+  document.getElementById('lanes').classList.toggle('on', S.lanes);
+  document.getElementById('period').value = String(S.days);
+  const hint = document.getElementById('hint');
+  hint.style.display = S.focus && !S.vessel ? 'block' : 'none';
+  hint.textContent = 'Focus mode: click a ship to see only its previous routes';
+}
+document.getElementById('focus').onclick = () => { S.focus = !S.focus; try { localStorage.setItem('avw-focus', S.focus ? '1' : '0'); } catch(e) {} renderMap(); };
+document.getElementById('lanes').onclick = () => { S.lanes = !S.lanes; renderMap(); };
+document.getElementById('period').onchange = e => { S.days = +e.target.value; renderMap(); };
+function drawLanes(){
+  gLanes.selectAll('*').remove();
+  if (!S.lanes || !D.lanes) return;
+  gLanes.selectAll('path').data(D.lanes.features).enter().append('path').attr('class','lane').attr('d', path);
+}
+// previous routes: legs between REPORTED positions, reconstructed along sea lanes (never straight across land)
+function drawRoutes(){
+  gRoutes.selectAll('*').remove();
+  if (!D.routes) return;
+  const cutoff = Date.parse(D.overview.as_of) - S.days * 864e5;
+  const risk = Object.fromEntries(D.fleet.features.map(f => [f.properties.vessel_id, f.properties.risk_score]));
+  const names = Object.fromEntries(D.fleet.features.map(f => [f.properties.vessel_id, f.properties.name]));
+  let legs = D.routes.features.filter(f => Date.parse(f.properties.to_ts) >= cutoff);
+  if (S.focus) legs = S.vessel ? legs.filter(f => f.properties.vessel_id === S.vessel) : [];
+  const sel = id => id === S.vessel;
+  legs.sort((a, b) => sel(a.properties.vessel_id) - sel(b.properties.vessel_id));
+  const col = f => sel(f.properties.vessel_id) ? '#4fb0ff' : COL[band(risk[f.properties.vessel_id] || 0)];
+  gRoutes.selectAll('path.leg:not(.hit)').data(legs).enter().append('path').attr('class','leg').attr('d', path)
+    .attr('stroke', col).attr('stroke-width', f => sel(f.properties.vessel_id) ? 2.4 : 1.2)
+    .attr('stroke-dasharray', f => f.properties.how.includes('ice') ? '2 4' : null)
+    .attr('opacity', f => sel(f.properties.vessel_id) ? .95 : (S.vessel ? .18 : .45));
+  gRoutes.selectAll('path.hit').data(legs).enter().append('path').attr('class','leg hit').attr('d', path)
+    .on('mousemove', (e, f) => tip(e, `<b>${esc(names[f.properties.vessel_id] || '')}</b><br>${fmtDate(f.properties.from_ts)} → ${fmtDate(f.properties.to_ts)} · ${f.properties.km.toLocaleString()} km<br><span class="sub">${esc(f.properties.from_event || '')} → ${esc(f.properties.to_event || '')}<br>Path ${esc(f.properties.how)}</span>`))
+    .on('mouseleave', hideTip).on('click', (e, f) => { e.stopPropagation(); openVessel(f.properties.vessel_id); });
+}
 // a ship with a known course is an arrow pointing that way (as on VesselFinder); otherwise a dot. Never a line.
 const ARROW = 'M0,-7 L4.5,5 L0,2.5 L-4.5,5 Z';
 function drawShips(){
@@ -253,6 +302,7 @@ function drawShips(){
     d3.select(this).attr('data-x', p[0]).attr('data-y', p[1]).attr('data-r', f.properties.cog || 0)
       .select('.ship').attr('d', f.properties.cog != null ? ARROW : null)
       .attr('fill', a === 3 ? '#fff' : c).attr('fill-opacity', a === 2 ? .5 : 1)
+      .attr('opacity', S.focus && S.vessel && f.properties.vessel_id !== S.vessel ? .35 : 1)
       .attr('stroke', f.properties.vessel_id === S.vessel ? '#fff' : (a === 3 ? c : '#0c1520'));
   });
   // ships reported at the identical spot (e.g. the same anchorage) share one label; their positions stay as reported
@@ -280,8 +330,9 @@ function drawMarkers(){
 }
 async function drawHistory(){
   gHist.selectAll('*').remove(); if (!S.vessel) return;
-  const t = await api(`/api/vessels/${S.vessel}/track?days=180`);
-  (t?.features || []).filter(f => f.properties.kind === 'ping' && shown(f.properties.lon, f.properties.lat)).forEach(f => {
+  const t = await api(`/api/vessels/${S.vessel}/track?days=365`);
+  const cutoff = Date.parse(D.overview.as_of) - S.days * 864e5;
+  (t?.features || []).filter(f => f.properties.kind === 'ping' && Date.parse(f.properties.ts) >= cutoff && shown(f.properties.lon, f.properties.lat)).forEach(f => {
     const p = xy(f.properties.lon, f.properties.lat); if (p) gHist.append('circle').attr('class','hist').attr('cx', p[0]).attr('cy', p[1]).attr('opacity', .6); });
   restyle();
 }
@@ -311,7 +362,9 @@ function renderLegend(){
   document.getElementById('legend').innerHTML = `<div class="h">Risk</div><div>${c(COL.high,1,'#0c1520')}High (12+)</div><div>${c(COL.watch,1,'#0c1520')}Watch (5–12)</div><div>${c(COL.low,1,'#0c1520')}Low</div>
     <div class="h">Last reported</div><div>${c('#5d6f83',1,'#5d6f83')}Within 7 days</div><div>${c('#5d6f83',.5,'#5d6f83')}7–30 days</div><div>${c('#fff',1,'#5d6f83')}Over 30 days</div>
     ${S.finding ? `<div class="h">Finding</div><div><svg width="12" height="12"><path d="M6 1.5L11 10.5H1Z" fill="none" stroke="${COL.high}" stroke-width="1.6"/></svg>Went dark here</div><div><svg width="12" height="12"><path d="M6 1.5L11 10.5H1Z" fill="${COL.high}"/></svg>Reappeared here</div>` : ''}
-    ${S.vessel ? `<div class="h">Selected ship</div><div><svg width="12" height="12"><circle cx="6" cy="6" r="2.5" fill="#4fb0ff"/></svg>Reported positions, 180 d</div>` : ''}`;
+    ${S.vessel ? `<div class="h">Selected ship</div><div><svg width="12" height="12"><circle cx="6" cy="6" r="2.5" fill="#4fb0ff"/></svg>Reported positions</div><div><svg width="18" height="8"><line x1="1" y1="4" x2="17" y2="4" stroke="#4fb0ff" stroke-width="2.4"/></svg>Previous route (sea lanes)</div><div><svg width="18" height="8"><line x1="1" y1="4" x2="17" y2="4" stroke="#4fb0ff" stroke-width="2.4" stroke-dasharray="2 4"/></svg>Through the ice, beyond the lanes</div>` : ''}
+    ${(!S.focus || S.vessel) ? `<div style="max-width:190px;margin-top:4px;font-size:10.5px">Routes join reported positions along sea lanes: an estimate of the path, not a recorded track.</div>` : ''}
+    ${S.lanes ? `<div><svg width="18" height="8"><line x1="1" y1="4" x2="17" y2="4" stroke="#6f86a3" stroke-width="1" opacity=".7"/></svg>Shipping lanes (MARNET)</div>` : ''}`;
 }
 function openVessel(id){ S.vessel = id; S.finding = null; if (S.view !== 'map') go('map'); else renderMap();
   const f = D.fleet.features.find(x => x.properties.vessel_id === id); if (f) setTimeout(() => flyTo(...f.geometry.coordinates, 5), 30); }
@@ -466,8 +519,8 @@ document.addEventListener('click', e => { if (!e.target.closest('.search')) res.
 
 (async function(){
   const r = await Promise.all(['/api/overview','/api/overview/fleet','/api/spoofing/anomalies?limit=500','/api/spoofing/kinds','/api/sar/detections',
-    '/api/vessels?watchlist=true','/api/data/references','/api/data/sources','/api/data/checks'].map(api));
-  [D.overview, D.fleet, D.anomalies, D.kinds, D.sar, D.watch, D.refs, D.sources, D.checks] = r;
+    '/api/vessels?watchlist=true','/api/data/references','/api/data/sources','/api/data/checks','/api/data/routes?days=365','/api/data/shipping-lanes'].map(api));
+  [D.overview, D.fleet, D.anomalies, D.kinds, D.sar, D.watch, D.refs, D.sources, D.checks, D.routes, D.lanes] = r;
   const h = location.hash.slice(1); if (h === 'home' || TABS.some(t => t[0] === h)) S.view = h;
   show();
 })();

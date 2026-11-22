@@ -56,3 +56,16 @@ def checks(s: Session = Depends(get_session)):
     rows = sorted(s.scalars(select(DataCheck)), key=lambda c: order.get(c.severity, 3))
     return [{"severity": c.severity, "table": c.table, "record": c.record, "field": c.field, "problem": c.problem,
              "value": c.value} for c in rows]
+
+
+@router.get("/routes")
+def routes(days: int = 365, s: Session = Depends(get_session)):
+    """Every watch-list ship's previous routes (legs reconstructed along sea lanes between reported positions)."""
+    from app.services.routes import fleet_routes
+    return fleet_routes(s, days)
+
+
+@router.get("/shipping-lanes")
+def lanes(min_lat: float = 50.0):
+    from app.services.routes import shipping_lanes
+    return shipping_lanes(min_lat)

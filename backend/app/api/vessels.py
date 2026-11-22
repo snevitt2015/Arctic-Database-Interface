@@ -139,3 +139,10 @@ def vessel_track(vessel_id: int, days: float = 30, s: Session = Depends(get_sess
                      [[p.lon, p.lat] for p in ps])] if len(ps) > 1 else []
     feats += [feature(p.lon, p.lat, {"kind": "ping", **position_out(p)}) for p in ps]
     return {"type": "FeatureCollection", "features": feats}
+
+
+@router.get("/{vessel_id}/route")
+def vessel_route_api(vessel_id: int, days: int = 365, s: Session = Depends(get_session)):
+    """Previous route: legs between reported positions, reconstructed along sea lanes (labelled as an estimate)."""
+    from app.services.routes import vessel_route
+    return {"type": "FeatureCollection", "features": vessel_route(s, vessel_id, days)}

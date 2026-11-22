@@ -12,6 +12,7 @@ pandas>=2.0
 scipy>=1.11
 tifffile>=2024.1
 openpyxl>=3.1
+searoute>=1.4
 # Postgres in production (DATABASE_URL=postgresql+psycopg://...):
 # psycopg[binary]>=3.1
 # tests

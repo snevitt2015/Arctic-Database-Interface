@@ -42,7 +42,7 @@ def snapshot() -> dict:
 
     for p in ["/api/overview", "/api/overview/fleet", "/api/spoofing/anomalies?limit=500", "/api/spoofing/kinds",
               "/api/sar/detections", "/api/vessels?watchlist=true", "/api/data/references", "/api/data/sources",
-              "/api/data/checks"]:
+              "/api/data/checks", "/api/data/routes?days=365", "/api/data/shipping-lanes"]:
         get(p)
     ids = {f["properties"]["vessel_id"] for f in out["/api/overview/fleet"]["features"]}
     ids |= {v["id"] for v in out["/api/vessels?watchlist=true"]}
@@ -50,7 +50,7 @@ def snapshot() -> dict:
     ids |= {t["vessel_id"] for t in out["/api/overview"]["top_risk"]}
     for i in sorted(ids):
         get(f"/api/vessels/{i}")
-        get(f"/api/vessels/{i}/track?days=180")
+        get(f"/api/vessels/{i}/track?days=365")
     for a in out["/api/spoofing/anomalies?limit=500"]:
         get(f"/api/spoofing/anomalies/{a['id']}")
     for d in out["/api/sar/detections"]:

@@ -116,3 +116,18 @@ def test_model_comparison_feeds_confidence(client):
     bad = client.post(f"/api/sar/detections/{d['detection_id']}/model-comparisons",
                       json={"vessel_id": d["vessel_id"], "method": "guess", "colour": "bw", "score": 0.8})
     assert bad.status_code == 400
+
+
+def test_routes_stay_at_sea_and_skip_conflicts(client):
+    r = client.get("/api/data/routes", params={"days": 3650}).json()
+    assert r["features"] and "estimate" in r["note"]
+    for f in r["features"]:
+        p = f["properties"]
+        assert p["how"] in ("direct (short hop)", "along sea lanes (reconstructed)",
+                            "straight through the ice (north of the sea-lane network)")
+        if p["how"].startswith("direct"):
+            assert p["km"] < 25                     # never a long straight line
+        # no leg is faster than a ship can sail: conflicting records are not joined
+        assert p["km"] / max(p["hours"], 1 / 60) / 1.852 <= 30.5
+    lanes = client.get("/api/data/shipping-lanes").json()
+    assert lanes["features"] and "MARNET" in lanes["source"]
