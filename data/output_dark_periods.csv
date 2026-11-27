@@ -4,7 +4,7 @@ vessel,went_dark,reappeared,hours_dark,km_moved,dark_lat,dark_lon,near_port,note
 50 Let Pobedy,2024-12-25 15:20:48+00:00,2024-12-26 09:40:07+00:00,18.3,21.2,73.65255,65.62485,,"AIS off 18.321944444444444 h, 21.28519973685211 km travelled while dark, intentional=True"
 50 Let Pobedy,2025-10-02 07:35:44+00:00,2025-10-03 01:21:37+00:00,17.8,22.4,73.13893,163.8449,,"AIS off 17.764722222222222 h, 22.542395174786318 km travelled while dark, intentional=True"
 Angara,2018-05-25 13:42:35+00:00,2018-05-26 10:16:38+00:00,20.6,342.9,21.47952,67.05739,,"AIS off 20.5675 h, 343.0001268960996 km travelled while dark, intentional=True"
-Arctic Mulan,2026-08-21 06:30:47+00:00,2026-08-21 23:21:12+00:00,16.8,533.5,43.93038,-19.58076,,"AIS off 16.84027777777778 h, 533.5065733030576 km travelled while dark, intentional=True"
+Arctic Mulan,2026-08-21 06:30:47+00:00,2026-08-21 23:21:12+00:00,16.8,533.5,43.93037,-19.58076,,"AIS off 16.84027777777778 h, 533.5065733030576 km travelled while dark, intentional=True"
 Arctic Pioneer,2017-02-04 23:00:10+00:00,2017-02-05 15:42:46+00:00,16.7,567.3,8.51053,73.9839,,"AIS off 16.71 h, 567.2883746678573 km travelled while dark, intentional=True"
 Arctic Vostok,2018-07-08 21:29:44+00:00,2018-07-17 19:06:17+00:00,213.6,988.3,-0.1848,-14.15798,,"AIS off 213.60916666666665 h, 989.0830328130331 km travelled while dark, intentional=True"
 Arctic Vostok,2018-12-23 16:57:14+00:00,2018-12-24 05:22:09+00:00,12.4,267.0,13.52261,70.26587,,"AIS off 12.415277777777778 h, 265.66897789165 km travelled while dark, intentional=True"
